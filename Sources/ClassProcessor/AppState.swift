@@ -344,8 +344,8 @@ final class AppState: ObservableObject {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.jpeg]
         panel.directoryURL = liveFolderURL
-        panel.prompt = "Load 6 photos"
-        panel.message = "Choose the first photo — the next 5 (by file name) are loaded with it"
+        panel.prompt = "Load photos"
+        panel.message = "Choose the first photo — it and the photos after it (by file name) are loaded: 1–6, never 7 or more"
         guard panel.runModal() == .OK, let url = panel.url else { return }
         loadSet(startingAt: url)
     }
@@ -356,12 +356,17 @@ final class AppState: ObservableObject {
             Log.error("\(first.lastPathComponent) not found")
             return
         }
-        let set = Array(list[i...].prefix(Self.setSize))
-        guard set.count == Self.setSize else {
-            Log.warn("Only \(set.count) photo(s) from \(first.lastPathComponent) — need \(Self.setSize). Not loaded.")
-            alert = AlertItem(title: "Not enough photos",
-                              message: "Only \(set.count) photo(s) from \(first.lastPathComponent). 6 are needed — nothing loaded.")
+        // The chosen photo and every photo after it in that folder: 1–6 are loaded, 7 or more are refused
+        // (late? move the 6 photos of this class into a new folder inside LIVEFOLDER and load from there).
+        let set = Array(list[i...])
+        guard set.count <= Self.setSize else {
+            Log.warn("\(set.count) photos from \(first.lastPathComponent) in \(first.deletingLastPathComponent().lastPathComponent) — max \(Self.setSize). Not loaded.")
+            alert = AlertItem(title: "Too many photos",
+                              message: "\(set.count) photos from \(first.lastPathComponent). Max \(Self.setSize) — nothing loaded.\n\nPut the 6 photos of this class in a new folder inside LIVEFOLDER and load from there.")
             return
+        }
+        if first.deletingLastPathComponent().standardizedFileURL != liveFolderURL.standardizedFileURL {
+            Log.info("Loading from folder \(first.deletingLastPathComponent().lastPathComponent) — results still go to LIVEFOLDER/DONE, PRINTS and WEBP")
         }
         if hasCopies {
             Log.info("New set loaded — finishing RESET & RENAME for the previous set first")
@@ -389,7 +394,7 @@ final class AppState: ObservableObject {
             webpSentFor = nil
             loading = false
             for p in loaded where p.preview == nil { Log.error("Cannot read \(p.url.lastPathComponent)") }
-            Log.ok("6 photos loaded (main: \(loaded[0].url.lastPathComponent))")
+            Log.ok("\(loaded.count) photo(s) loaded (main: \(loaded[0].url.lastPathComponent))")
         }
     }
 
@@ -433,7 +438,7 @@ final class AppState: ObservableObject {
 
     /// WebP "<class> - 1…6" (by position) of the 6 loaded photos → phone. Camera files are not touched.
     func sendPhoneWebP() {
-        guard photos.count == Self.setSize,
+        guard !photos.isEmpty,
               let rendered = settings.renderedName, rendered != "XXX",
               !rendered.trimmingCharacters(in: .whitespaces).isEmpty else { return }
         let cls = Self.safeFileName(rendered)
@@ -524,14 +529,14 @@ final class AppState: ObservableObject {
 
     func process(printSamples: Bool) async {
         guard !processing else { return }
-        guard photos.count == Self.setSize else {
+        guard !photos.isEmpty else {
             alert = AlertItem(title: "No photo loaded", message: "Press Load Photo first.")
             return
         }
         let order = (0..<photos.count).filter { !red.contains($0) }
         guard order.count <= Self.masterCount else {
             alert = AlertItem(title: "Mark one photo red",
-                              message: "6 photos but only 5 masters. Right-click one of the small photos to skip it.")
+                              message: "\(order.count) photos but only 5 masters. Right-click one of the small photos to skip it.")
             return
         }
         for n in 1...order.count where masters[n - 1] == nil {

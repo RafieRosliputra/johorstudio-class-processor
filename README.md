@@ -36,7 +36,10 @@ Desktop/2026 SMK Kulai Besar Class Photo/     ← root
 
 - **Directory**: pilih LIVEFOLDER (default `root/LIVEFOLDER`).
 - **HOTFOLDER**: folder hotfolder printer. Disimpan dalam settings.
-- **Load Photo**: pilih gambar pertama. App ambil 5 gambar seterusnya ikut **nama fail**. Kalau tak cukup 6, tiada apa yang di-load.
+- **Load Photo**: pilih gambar pertama. App ambil gambar tu **dan semua gambar selepasnya** dalam folder yang sama (ikut nama fail):
+  - 1–6 gambar: semua di-load (kotak yang tiada gambar dibiarkan kosong) dan diproses macam biasa (contoh 1 gambar = 1 output).
+  - 7 gambar atau lebih: ditolak.
+  - Terlambat dan LIVEFOLDER dah ada banyak gambar (contoh 18)? Buat folder baru dalam LIVEFOLDER, masukkan 6 gambar kelas tu, dan load dari situ. Hasil tetap pergi ke tempat biasa: `LIVEFOLDER/DONE`, `PRINTS`, `LIVEFOLDER/WEBP`.
   - Gambar besar = gambar 1 (main). Kotak kecil = gambar 2–6.
   - Preview guna snapshot ~2000px supaya laju. PROCESS guna fail asal 42MP.
 - **Master File (overlay)**: pilih `xxxx1.webp`. App cari sendiri `xxxx2…xxxx5.webp` dalam folder sama, dan senarai yang di-load ditulis bawah butang. Kawasan foto diambil automatik dari bahagian transparent master1.
@@ -54,7 +57,7 @@ Desktop/2026 SMK Kulai Besar Class Photo/     ← root
   - Kalau 6 gambar semua tak merah, PROCESS tak jalan (master cuma 5).
   - Kalau tinggal 3, proses 3 sahaja.
 - **PROCESS FILES**: export JPG 1800×1200, Q95, 300 DPI, sRGB ke `PRINTS/`. Nama ikut isi text layer dan nombor master, tanpa tarikh: `TINGKATAN 1C - 1.jpg` … `- 5.jpg`. Gambar kekal dalam app.
-- **Refresh nama** (bila 6 gambar loaded): 6 gambar terus dijadikan WebP bernama `TINGKATAN 1C - 1.webp` … `- 6.webp` (ikut kedudukan) dan **dihantar ke phone**. Fail kamera dalam LIVEFOLDER tak diusik. (PROCESS pun hantar kalau set tu belum dihantar dengan nama tu.)
+- **Refresh nama** (bila 6 gambar loaded): gambar yang loaded terus dijadikan WebP bernama `TINGKATAN 1C - 1.webp` … `- 6.webp` (ikut kedudukan) dan **dihantar ke phone**. Fail kamera dalam LIVEFOLDER tak diusik. (PROCESS pun hantar kalau set tu belum dihantar dengan nama tu.)
   - Kalau fail dah ada dalam PRINTS, ia tak dieksport semula dan ditulis dalam log.
   - Kalau teks belum di-refresh, app refresh dulu secara automatik.
 - **PRINT SAMPLES**: sama macam PROCESS, ditambah salin fail PRINTS ke HOTFOLDER. Tiada overwrite: kalau fail dah ada, ia dilangkau.
