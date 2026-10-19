@@ -12,6 +12,8 @@ final class ADBManager: ObservableObject {
     weak var app: AppState?
 
     @Published private(set) var devices: [String] = []
+    /// Devices adb sees but cannot use yet (serial → state, e.g. "unauthorized", "offline").
+    @Published private(set) var notReady: [String: String] = [:]
     @Published private(set) var running = false
     @Published private(set) var busy = false
     @Published private(set) var pendingCount = 0
@@ -23,7 +25,10 @@ final class ADBManager: ObservableObject {
     private var workTimer: Timer?
     private var galleryTimer: Timer?
     private let monitor = FolderMonitor()
-    private let queue = DispatchQueue(label: "classproc.adb")
+    /// Quick adb commands (devices, swipe, gallery…) never wait behind a batch being sent.
+    private let queue = DispatchQueue(label: "classproc.adb.cmd")
+    private let sendQueue = DispatchQueue(label: "classproc.adb.send", qos: .utility)
+    private var checkingDevices = false
 
     var serial: String? { app?.settings.adbSerial }
 
@@ -35,6 +40,9 @@ final class ADBManager: ObservableObject {
     var statusText: String {
         guard adbPath != nil else { return "adb not installed" }
         if let serial, devices.contains(serial) { return "adb \(serial) connected" }
+        if let first = notReady.first {
+            return first.value == "unauthorized" ? "adb \(first.key): press Allow on the phone" : "adb \(first.key) \(first.value)"
+        }
         if devices.isEmpty { return "adb no device" }
         return "adb \(serial ?? "-") not connected"
     }
@@ -50,7 +58,7 @@ final class ADBManager: ObservableObject {
         Log.ok("adb: \(adbPath)")
         loadSent()
         restartServer()
-        statusTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+        statusTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refreshDevices(quiet: true) }
         }
     }
@@ -124,13 +132,30 @@ final class ADBManager: ObservableObject {
     }
 
     func refreshDevices(quiet: Bool) {
+        // Never pile up `adb devices` calls if adb is slow (e.g. server starting).
+        if checkingDevices && quiet { return }
+        checkingDevices = true
         adb(["devices"], device: false) { [weak self] _, text in
             guard let self else { return }
-            let list = text.split(separator: "\n")
-                .filter { $0.contains("\tdevice") }
-                .map { String($0.split(separator: "\t")[0]) }
+            self.checkingDevices = false
+            var list: [String] = []
+            var other: [String: String] = [:]
+            for line in text.split(separator: "\n") {
+                let parts = line.split(separator: "\t")
+                guard parts.count == 2 else { continue }
+                let serial = String(parts[0]), state = String(parts[1]).trimmingCharacters(in: .whitespaces)
+                if state == "device" { list.append(serial) } else { other[serial] = state }
+            }
             let wasConnected = self.connected
             if list != self.devices { self.devices = list }
+            if other != self.notReady {
+                for (s, state) in other where self.notReady[s] != state {
+                    Log.warn(state == "unauthorized"
+                             ? "ADB \(s) unauthorized — tick \"Allow USB debugging\" on the phone"
+                             : "ADB \(s) is \(state)")
+                }
+                self.notReady = other
+            }
             // Pick the first device when none is chosen (or the chosen one is gone and only one is left).
             if let app = self.app, !list.isEmpty, app.settings.adbSerial == nil || (!list.contains(app.settings.adbSerial!) && list.count == 1) {
                 app.settings.adbSerial = list[0]
@@ -278,7 +303,7 @@ final class ADBManager: ObservableObject {
         let tether = app.settings.tether
         Log.info("ADB: sending batch of \(batch.count)")
 
-        queue.async {
+        sendQueue.async {
             var ready: [(jpg: URL, webp: URL)] = []
             try? FileManager.default.ensureDirectory(webpFolder)
             for jpg in batch {
@@ -290,10 +315,11 @@ final class ADBManager: ObservableObject {
                 let webp = webpFolder.appendingPathComponent(jpg.deletingPathExtension().lastPathComponent + ".webp")
                 if !FileManager.default.fileExists(atPath: webp.path) {
                     do {
+                        let t0 = Date()
                         guard let image = Imaging.full(jpg) else { throw AppError.cannotRead(jpg.lastPathComponent) }
                         let data = try ImageExport.webpData(image, quality: 50)
                         try ImageExport.writeAtomically(data, to: webp)
-                        Task { @MainActor in Log.ok("WebP: \(webp.lastPathComponent) (\(image.width)×\(image.height), \(data.count / 1024) KB)") }
+                        Task { @MainActor in Log.ok("WebP: \(webp.lastPathComponent) (\(image.width)×\(image.height), \(data.count / 1024) KB, \(String(format: "%.1f", Date().timeIntervalSince(t0)))s)") }
                     } catch {
                         Task { @MainActor in Log.error("WebP \(jpg.lastPathComponent): \(error.localizedDescription)") }
                         continue
@@ -304,6 +330,7 @@ final class ADBManager: ObservableObject {
 
             var pushedNames: [String] = []
             if !ready.isEmpty {
+                Task { @MainActor in Log.info("ADB: pushing \(ready.count) WebP…") }
                 let r = Self.run(adbPath, ["-s", serial, "push"] + ready.map(\.webp.path) + [phone])
                 if r.status == 0 {
                     pushedNames = ready.map(\.jpg.lastPathComponent)

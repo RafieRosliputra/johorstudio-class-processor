@@ -92,7 +92,8 @@ struct BigPreview: View {
                     onEnd: { dragStart.value = nil },
                     onScroll: { ticks, p in
                         app.zoom(ticks: ticks, anchor: CGPoint(x: p.x / k, y: p.y / k))
-                    }
+                    },
+                    onDoubleClick: { if let main = app.photos.first { QuickLook.show(main.url) } }
                 )
                 .frame(width: dw, height: dh)
                 .allowsHitTesting(!app.photos.isEmpty && !app.processing)
@@ -112,6 +113,7 @@ struct PanZoomCatcher: NSViewRepresentable {
     var onDrag: (CGSize) -> Void
     var onEnd: () -> Void
     var onScroll: (Double, CGPoint) -> Void
+    var onDoubleClick: () -> Void
 
     func makeNSView(context: Context) -> CatcherView {
         let v = CatcherView()
@@ -126,6 +128,7 @@ struct PanZoomCatcher: NSViewRepresentable {
         v.onDrag = onDrag
         v.onEnd = onEnd
         v.onScroll = onScroll
+        v.onDoubleClick = onDoubleClick
     }
 
     final class CatcherView: NSView {
@@ -133,6 +136,7 @@ struct PanZoomCatcher: NSViewRepresentable {
         var onDrag: (CGSize) -> Void = { _ in }
         var onEnd: () -> Void = {}
         var onScroll: (Double, CGPoint) -> Void = { _, _ in }
+        var onDoubleClick: () -> Void = {}
         private var start: CGPoint?
         private var preciseAccum = 0.0
 
@@ -144,6 +148,10 @@ struct PanZoomCatcher: NSViewRepresentable {
         }
 
         override func mouseDown(with event: NSEvent) {
+            if event.clickCount == 2 {
+                onDoubleClick()
+                return
+            }
             start = convert(event.locationInWindow, from: nil)
             NSCursor.closedHand.push()
             onBegin()
@@ -156,6 +164,7 @@ struct PanZoomCatcher: NSViewRepresentable {
         }
 
         override func mouseUp(with event: NSEvent) {
+            guard start != nil else { return }
             start = nil
             NSCursor.pop()
             onEnd()
@@ -216,7 +225,8 @@ struct SmallBox: View {
             if isRed {
                 Color.red.opacity(0.65)
             }
-            RightClickCatcher { app.toggleRed(index) }
+            RightClickCatcher(action: { app.toggleRed(index) },
+                              doubleClick: { if let photo { QuickLook.show(photo.url) } })
         }
         .aspectRatio(3 / 2, contentMode: .fit)
         .clipped()
@@ -230,27 +240,38 @@ struct SmallBox: View {
                     .foregroundStyle(.white)
             }
         }
-        .help("Right-click to skip / use this photo")
+        .help("Right-click: red (not used) • double-click: Quick Look")
         .frame(maxWidth: .infinity)
     }
 }
 
 struct RightClickCatcher: NSViewRepresentable {
     var action: () -> Void
+    var doubleClick: () -> Void = {}
 
     func makeNSView(context: Context) -> CatchView {
         let v = CatchView()
         v.action = action
+        v.doubleClick = doubleClick
         return v
     }
 
-    func updateNSView(_ nsView: CatchView, context: Context) { nsView.action = action }
+    func updateNSView(_ nsView: CatchView, context: Context) {
+        nsView.action = action
+        nsView.doubleClick = doubleClick
+    }
 
     final class CatchView: NSView {
         var action: () -> Void = {}
+        var doubleClick: () -> Void = {}
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
         override func rightMouseDown(with event: NSEvent) { action() }
         override func mouseDown(with event: NSEvent) {
-            if event.modifierFlags.contains(.control) { action() }
+            if event.modifierFlags.contains(.control) {
+                action()
+            } else if event.clickCount == 2 {
+                doubleClick()
+            }
         }
     }
 }
@@ -385,8 +406,9 @@ struct RightPanel: View {
                 .frame(maxHeight: .infinity)
 
             HStack(spacing: 10 * s) {
-                Button("RESET PHOTO") { app.resetPhotos() }
-                    .buttonStyle(PanelButtonStyle())
+                Button(app.pendingRename == nil ? "RESET PHOTO" : "RESET & RENAME") { app.resetPhotos() }
+                    .buttonStyle(PanelButtonStyle(highlighted: app.pendingRename != nil))
+                    .help(app.pendingRename == nil ? "Unload the photos" : "Rename the loaded camera files (\(app.pendingRename!.name) - 1…, red = xx), move them to DONE, unload")
                     .disabled(app.processing)
                 Button("PURGE PRINTER") { app.confirmPurge = true }
                     .buttonStyle(PanelButtonStyle(destructive: true))

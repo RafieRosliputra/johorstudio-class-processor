@@ -46,16 +46,19 @@ Desktop/2026 SMK Kulai Besar Class Photo/     ← root
   - Kali pertama, macOS akan tanya *"JohorStudio-Class-Processor wants to control Adobe Photoshop 2026"*. Tekan **Allow**.
 - **Preview besar**: **drag** untuk ubah kedudukan, **scroll** untuk ubah saiz. **scroll size %** = berapa % setiap satu scroll. **Fill** = kembali 100%, di tengah.
   - Saiz & kedudukan disimpan dalam `settings.json` dan dipakai untuk **semua** gambar masa process, termasuk set gambar seterusnya.
-- **Right-click** kotak kecil: jadi **merah** = tak diproses. Right-click lagi sekali untuk batal.
+- **Right-click** kotak kecil: jadi **merah** = buang (tak diproses). Right-click lagi sekali untuk batal.
+- **Double-click** gambar besar atau kotak kecil: buka dalam Quick Look (macam Space dalam Finder).
   - Master ikut susunan gambar yang tak merah. Contoh: gambar 4 merah → 1, 2, 3 guna master1–3, gambar 5 guna master4, gambar 6 guna master5.
   - Kalau 6 gambar semua tak merah, PROCESS tak jalan (master cuma 5).
   - Kalau tinggal 3, proses 3 sahaja.
-- **PROCESS FILES**: export JPG 1800×1200, Q95, 300 DPI, sRGB ke `PRINTS/` dengan nama `TINGKATAN 1C - 1.jpg`… Kemudian fail asal kamera **dinamakan semula & dipindah** ke `LIVEFOLDER/DONE/` (isi fail tak diubah). Gambar merah kekal dalam LIVEFOLDER.
+- **PROCESS FILES**: export JPG 1800×1200, Q95, 300 DPI, sRGB ke `PRINTS/`. Nama ikut isi text layer dan nombor master, tanpa tarikh: `TINGKATAN 1C - 1.jpg` … `- 5.jpg`. Gambar kekal dalam app.
   - Kalau fail dah ada dalam PRINTS, ia tak dieksport semula dan ditulis dalam log.
   - Kalau teks belum di-refresh, app refresh dulu secara automatik.
 - **PRINT SAMPLES**: sama macam PROCESS, ditambah salin fail PRINTS ke HOTFOLDER. Tiada overwrite: kalau fail dah ada, ia dilangkau.
 - **📁**: buka folder PRINTS.
 - **RESET PHOTO**: kosongkan preview, tulis "no photo loaded", kotak nama kelas jadi `XXX`. `textLayer.psb` tak disentuh.
+  - Lepas PROCESS / PRINT SAMPLES, butang jadi hijau (**RESET & RENAME**). Bila ditekan, **semua** 6 fail kamera yang di-load dinamakan semula dan dipindah ke `LIVEFOLDER/DONE/` (isi fail tak diubah): `TINGKATAN 1C - 1.jpg` … `- 5.jpg`. Yang merah dapat `TINGKATAN 1C - xx.jpg`.
+  - Load Photo set baru tanpa reset pun akan rename set yang dah diproses dulu.
 - **PURGE PRINTER** (merah): popup amaran dulu, lepas tu buang semua job dalam queue printer default (`cancel -a -x`).
 - Kanan atas: status adb (hijau/merah) dan jumlah JPG dalam LIVEFOLDER.
 
@@ -64,7 +67,9 @@ Desktop/2026 SMK Kulai Besar Class Photo/     ← root
 Bahagian ADB dari app *JohorStudio LiveFolder* lama. adb: `/opt/homebrew/bin/adb` (`brew install android-platform-tools`).
 
 - **RESET SERVER**: `adb kill-server` + `adb start-server`. Turut berjalan masa app dibuka.
-- **Device**: pilih phone (dari `adb devices`), **Refresh**, atau **Wireless ADB IP** + **Connect**.
+- **Device**: pilih phone (dari `adb devices`, disemak setiap 2 saat), **Refresh**, atau **Wireless ADB IP** + **Connect**.
+  - Kalau status tulis *"press Allow on the phone"*: buka phone dan tekan **Allow USB debugging**.
+  - Arahan ADB (swipe, restart gallery…) tak perlu tunggu batch WebP yang sedang dihantar.
 - **START SENDING**: setiap JPG baru dalam LIVEFOLDER → WebP saiz penuh quality 50 dalam `LIVEFOLDER/WEBP/` → `adb push` ke `/sdcard/Downloads/`, **10 fail sekali**, kemudian swipe untuk refresh gallery.
   - Fail yang dah dihantar dilangkau, ikut rekod dalam `adb-sent.json`.
   - Simple Gallery Pro di-restart **setiap 2 minit** (boleh ubah).

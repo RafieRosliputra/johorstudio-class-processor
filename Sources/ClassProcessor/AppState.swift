@@ -51,6 +51,9 @@ final class AppState: ObservableObject {
     @Published private(set) var loading = false
     @Published private(set) var processing = false
     @Published private(set) var liveCount = 0
+    /// Set by PROCESS / PRINT SAMPLES: class name + suffix per loaded photo ("1"…"5", red = "xx").
+    /// The camera files are renamed with it and moved to DONE on RESET PHOTO.
+    @Published private(set) var pendingRename: (name: String, suffix: [Int: String])?
 
     let adb = ADBManager()
 
@@ -346,6 +349,10 @@ final class AppState: ObservableObject {
                               message: "Only \(set.count) photo(s) from \(first.lastPathComponent). 6 are needed — nothing loaded.")
             return
         }
+        if pendingRename != nil {
+            Log.info("New set loaded — renaming the processed set first")
+            renameProcessed()
+        }
         loading = true
         Log.info("Loading: \(set.map(\.lastPathComponent).joined(separator: ", "))")
         Task {
@@ -384,10 +391,39 @@ final class AppState: ObservableObject {
 
     /// RESET PHOTO: unload the photos, class name box → XXX (textLayer.psb is not touched).
     func resetPhotos() {
+        renameProcessed()
         photos = []
         red = []
         settings.className = "XXX"
         Log.info("Reset: no photo loaded, class name → XXX")
+    }
+
+    /// Rename the processed camera files in LIVEFOLDER to "<class> - 1…5" (red: "<class> - xx")
+    /// and move them to LIVEFOLDER/DONE. Contents are never touched.
+    func renameProcessed() {
+        guard let plan = pendingRename else { return }
+        pendingRename = nil
+        let fm = FileManager.default
+        let done = WorkPaths.done(in: liveFolderURL)
+        try? fm.ensureDirectory(done)
+        for (i, photo) in photos.enumerated() {
+            let src = photo.url
+            guard fm.fileExists(atPath: src.path) else {
+                Log.warn("RENAME \(src.lastPathComponent): file not found")
+                continue
+            }
+            let suffix = plan.suffix[i] ?? "xx"
+            let ext = src.pathExtension.lowercased().isEmpty ? "jpg" : src.pathExtension.lowercased()
+            let dest = fm.freeName("\(plan.name) - \(suffix)", ext: ext, in: done)
+            do {
+                try fm.moveItem(at: src, to: dest)
+                photos[i].url = dest
+                Log.ok("RENAME \(src.lastPathComponent) → DONE/\(dest.lastPathComponent)")
+            } catch {
+                Log.error("RENAME \(src.lastPathComponent): \(error.localizedDescription)")
+            }
+        }
+        countLive()
     }
 
     // MARK: - Zoom & position (master pixels, saved in settings)
@@ -449,8 +485,7 @@ final class AppState: ObservableObject {
             alert = AlertItem(title: "Master \(n) missing", message: "Press Master File (overlay) and choose xxxx1.webp.")
             return
         }
-        let cls = Self.safeFileName(settings.className)
-        guard !cls.isEmpty, cls != "XXX" else {
+        guard !settings.className.trimmingCharacters(in: .whitespaces).isEmpty, settings.className != "XXX" else {
             alert = AlertItem(title: "No class name", message: "Type the class name, then press refresh.")
             return
         }
@@ -467,6 +502,8 @@ final class AppState: ObservableObject {
             Log.info("Class name text is not \"\(settings.className)\" yet — refreshing first")
             guard await refreshText() else { return }
         }
+        // File names follow the text layer exactly: "TINGKATAN 1C - 1.jpg".
+        let cls = Self.safeFileName(settings.renderedName ?? settings.className)
 
         struct Job { let index: Int; let number: Int; let url: URL; let size: CGSize; let master: CGImage }
         let jobs = order.enumerated().map { (k, i) in
@@ -478,16 +515,13 @@ final class AppState: ObservableObject {
         let zoom = settings.zoom
         let offset = self.offset
         let prints = paths.prints
-        let done = WorkPaths.done(in: liveFolderURL)
         let hot = printSamples ? hotfolderURL : nil
 
         Log.info("\(printSamples ? "PRINT SAMPLES" : "PROCESS"): \(cls) — \(jobs.count) photo(s)\(red.isEmpty ? "" : ", skipped: \(red.sorted().map { "#\($0 + 1)" }.joined(separator: ", "))")")
 
-        let moved: [Int: URL] = await Task.detached(priority: .userInitiated) {
+        await Task.detached(priority: .userInitiated) {
             let fm = FileManager.default
             try? fm.ensureDirectory(prints)
-            try? fm.ensureDirectory(done)
-            var moved: [Int: URL] = [:]
             for job in jobs {
                 let name = "\(cls) - \(job.number).jpg"
                 let out = prints.appendingPathComponent(name)
@@ -528,27 +562,13 @@ final class AppState: ObservableObject {
                         }
                     }
                 }
-
-                // 3. Rename & move the camera original to LIVEFOLDER/DONE (contents untouched).
-                if job.url.deletingLastPathComponent().standardizedFileURL == done.standardizedFileURL {
-                    Log.info("\(job.url.lastPathComponent) already in DONE")
-                    continue
-                }
-                let ext = job.url.pathExtension.lowercased()
-                let dest = fm.freeName("\(cls) - \(job.number)", ext: ext.isEmpty ? "jpg" : ext, in: done)
-                do {
-                    try fm.moveItem(at: job.url, to: dest)
-                    moved[job.index] = dest
-                    Log.ok("MOVE \(job.url.lastPathComponent) → DONE/\(dest.lastPathComponent)")
-                } catch {
-                    Log.error("MOVE \(job.url.lastPathComponent): \(error.localizedDescription)")
-                }
             }
-            return moved
         }.value
 
-        for (i, url) in moved where i < photos.count { photos[i].url = url }
-        countLive()
+        var suffix: [Int: String] = [:]
+        for job in jobs { suffix[job.index] = String(job.number) }
+        pendingRename = (cls, suffix)
+        Log.info("Camera files are renamed (\(cls) - 1…, red = xx) and moved to DONE when you press RESET PHOTO")
         Log.ok("\(printSamples ? "PRINT SAMPLES" : "PROCESS") finished: \(cls)")
     }
 
