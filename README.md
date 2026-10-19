@@ -42,24 +42,27 @@ Desktop/2026 SMK Kulai Besar Class Photo/     ← root
 - **Master File (overlay)**: pilih `xxxx1.webp`. App cari sendiri `xxxx2…xxxx5.webp` dalam folder sama, dan senarai yang di-load ditulis bawah butang. Kawasan foto diambil automatik dari bahagian transparent master1.
   - Ikon ⚙︎: X/Y/W/H kedudukan teks nama kelas atas master 1800×1200. Default 0/1024/1800/74, ikut `masterSort.psd`.
 - **CLASS NAME**: pilih `textLayer.psb`. Kotak bawahnya untuk taip nama kelas (auto huruf besar).
+  - Setiap kali app dibuka, dan setiap kali RESET, kotak dan text layer jadi **XXX** (PROCESS tak jalan dengan XXX).
+  - Sebelah kotak: **saiz teks %** dan anak panah ← ↑ ↓ → untuk gerakkan teks (5px; option = 1px, shift = 20px).
   - Butang **refresh** (⟳): Photoshop tukar isi text layer sahaja, save PSB, dan export PNG transparent. Butang jadi **oren** bila teks dalam kotak belum di-refresh.
   - Kali pertama, macOS akan tanya *"JohorStudio-Class-Processor wants to control Adobe Photoshop 2026"*. Tekan **Allow**.
 - **Preview besar**: **drag** untuk ubah kedudukan, **scroll** untuk ubah saiz. **scroll size %** = berapa % setiap satu scroll. **Fill** = kembali 100%, di tengah.
   - Saiz & kedudukan disimpan dalam `settings.json` dan dipakai untuk **semua** gambar masa process, termasuk set gambar seterusnya.
 - **Right-click** kotak kecil: jadi **merah** = buang (tak diproses). Right-click lagi sekali untuk batal.
-- **Double-click** gambar besar atau kotak kecil: buka dalam Quick Look (macam Space dalam Finder).
+- **Klik** kotak kecil atau gambar besar (klik pendek, tanpa drag): buka dalam Quick Look (macam Space dalam Finder). Klik lagi / Esc untuk tutup.
   - Master ikut susunan gambar yang tak merah. Contoh: gambar 4 merah → 1, 2, 3 guna master1–3, gambar 5 guna master4, gambar 6 guna master5.
   - Kalau 6 gambar semua tak merah, PROCESS tak jalan (master cuma 5).
   - Kalau tinggal 3, proses 3 sahaja.
 - **PROCESS FILES**: export JPG 1800×1200, Q95, 300 DPI, sRGB ke `PRINTS/`. Nama ikut isi text layer dan nombor master, tanpa tarikh: `TINGKATAN 1C - 1.jpg` … `- 5.jpg`. Gambar kekal dalam app.
+- **Refresh nama / PROCESS / PRINT SAMPLES** (bila 6 gambar loaded): fail kamera **disalin** ke `LIVEFOLDER/DONE/` dengan nama `TINGKATAN 1C - 1…5.jpg` (merah = `- xx`), kemudian dijadikan WebP dan **dihantar ke phone** terus. Fail asal dalam LIVEFOLDER tak diusik. Kalau nama/merah berubah, salinan lama dibuang ke Trash dan dibuat semula.
   - Kalau fail dah ada dalam PRINTS, ia tak dieksport semula dan ditulis dalam log.
   - Kalau teks belum di-refresh, app refresh dulu secara automatik.
 - **PRINT SAMPLES**: sama macam PROCESS, ditambah salin fail PRINTS ke HOTFOLDER. Tiada overwrite: kalau fail dah ada, ia dilangkau.
 - **📁**: buka folder PRINTS.
-- **RESET PHOTO**: kosongkan preview, tulis "no photo loaded", kotak nama kelas jadi `XXX`. `textLayer.psb` tak disentuh.
-  - Lepas PROCESS / PRINT SAMPLES, butang jadi hijau (**RESET & RENAME**). Bila ditekan, **semua** 6 fail kamera yang di-load dinamakan semula dan dipindah ke `LIVEFOLDER/DONE/` (isi fail tak diubah): `TINGKATAN 1C - 1.jpg` … `- 5.jpg`. Yang merah dapat `TINGKATAN 1C - xx.jpg`.
-  - Load Photo set baru tanpa reset pun akan rename set yang dah diproses dulu.
-- **PURGE PRINTER** (merah): popup amaran dulu, lepas tu buang semua job dalam queue printer default (`cancel -a -x`).
+- **RESET PHOTO**: kosongkan preview, tulis "no photo loaded", kotak nama kelas dan text layer jadi `XXX`.
+  - Bila salinan dah ada dalam DONE, butang jadi hijau (**RESET & RENAME**): fail asal kamera dalam LIVEFOLDER **dibuang ke Trash** (salinannya dah ada dalam DONE). Fail asal tanpa salinan dinamakan semula dan dipindah ke DONE.
+  - Load Photo set baru tanpa reset pun akan buat langkah ni untuk set sebelumnya dulu.
+- **PURGE PRINTER** (merah): popup amaran dulu, lepas tu buang semua job dalam queue printer default (`cancel -a -x`). **Right-click** = buka queue printer (Print Center).
 - Kanan atas: status adb (hijau/merah) dan jumlah JPG dalam LIVEFOLDER.
 
 ## Tab ADB

@@ -141,6 +141,7 @@ struct PanZoomCatcher: NSViewRepresentable {
         var onScroll: (Double, CGPoint) -> Void = { _, _ in }
         private var start: CGPoint?
         private var moved = false
+        private var downTime = Date()
         private var preciseAccum = 0.0
 
         override var isFlipped: Bool { true }
@@ -153,6 +154,7 @@ struct PanZoomCatcher: NSViewRepresentable {
         override func mouseDown(with event: NSEvent) {
             start = convert(event.locationInWindow, from: nil)
             moved = false
+            downTime = Date()
             NSCursor.closedHand.push()
             onBegin()
         }
@@ -176,8 +178,8 @@ struct PanZoomCatcher: NSViewRepresentable {
             start = nil
             NSCursor.pop()
             onEnd()
-            // A click without dragging = Quick Look.
-            if !moved { toggleQuickLook() }
+            // A quick click without dragging = Quick Look.
+            if !moved, Date().timeIntervalSince(downTime) < 0.4 { toggleQuickLook() }
         }
 
         override func scrollWheel(with event: NSEvent) {
