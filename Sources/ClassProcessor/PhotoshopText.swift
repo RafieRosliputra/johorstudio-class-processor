@@ -43,9 +43,12 @@ enum PhotoshopText {
         process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
         process.arguments = [
             "-e", "on run argv",
+            // First run waits for the macOS "allow to control Photoshop" prompt.
+            "-e", "with timeout of 600 seconds",
             "-e", "tell application \"\(appName)\"",
             "-e", "return do javascript (item 1 of argv) with arguments {item 2 of argv, item 3 of argv, item 4 of argv}",
             "-e", "end tell",
+            "-e", "end timeout",
             "-e", "end run",
             jsx, className, psb.path, png.path,
         ]
