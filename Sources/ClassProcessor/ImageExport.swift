@@ -66,27 +66,4 @@ enum ImageExport {
         if fm.fileExists(atPath: url.path) { try fm.removeItem(at: url) }
         try fm.moveItem(at: tmp, to: url)
     }
-
-    /// EXIF DateTimeOriginal, else file creation date.
-    static func dateTaken(_ url: URL) -> Date {
-        if let src = CGImageSourceCreateWithURL(url as CFURL, nil),
-           let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any] {
-            let exif = props[kCGImagePropertyExifDictionary] as? [CFString: Any]
-            let tiff = props[kCGImagePropertyTIFFDictionary] as? [CFString: Any]
-            let text = exif?[kCGImagePropertyExifDateTimeOriginal] as? String
-                ?? exif?[kCGImagePropertyExifDateTimeDigitized] as? String
-                ?? tiff?[kCGImagePropertyTIFFDateTime] as? String
-            if let text, let date = exifFormatter.date(from: text) { return date }
-        }
-        Log.warn("\(url.lastPathComponent) has no EXIF date — using file date")
-        let values = try? url.resourceValues(forKeys: [.creationDateKey])
-        return values?.creationDate ?? Date()
-    }
-
-    private static let exifFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "yyyy:MM:dd HH:mm:ss"
-        return f
-    }()
 }

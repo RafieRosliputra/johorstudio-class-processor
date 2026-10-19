@@ -163,16 +163,18 @@ struct PanZoomCatcher: NSViewRepresentable {
 
         override func scrollWheel(with event: NSEvent) {
             let p = convert(event.locationInWindow, from: nil)
+            // Same direction whatever "natural scrolling" is set to: wheel up / away = bigger.
+            let dy = event.isDirectionInvertedFromDevice ? -event.scrollingDeltaY : event.scrollingDeltaY
             if event.hasPreciseScrollingDeltas {
                 // Trackpad / Magic Mouse: every 10 points = 1 notch.
-                preciseAccum += event.scrollingDeltaY
+                preciseAccum += dy
                 let ticks = (preciseAccum / 10).rounded(.towardZero)
                 if ticks != 0 {
                     preciseAccum -= ticks * 10
                     onScroll(ticks, p)
                 }
-            } else if event.scrollingDeltaY != 0 {
-                onScroll(event.scrollingDeltaY > 0 ? 1 : -1, p)
+            } else if dy != 0 {
+                onScroll(dy > 0 ? 1 : -1, p)
             }
         }
     }
