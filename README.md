@@ -76,12 +76,13 @@ Bahagian ADB dari app *JohorStudio LiveFolder* lama. adb: `/opt/homebrew/bin/adb
 - **Device**: pilih phone (dari `adb devices`, disemak setiap 2 saat), **Refresh**, atau **Wireless ADB IP** + **Connect**.
   - Kalau status tulis *"press Allow on the phone"*: buka phone dan tekan **Allow USB debugging**.
   - Arahan ADB (swipe, restart gallery…) tak perlu tunggu batch WebP yang sedang dihantar.
-- **START SENDING**: setiap JPG baru dalam LIVEFOLDER → WebP saiz penuh quality 50 dalam `LIVEFOLDER/WEBP/` → `adb push` ke `/sdcard/Downloads/`, **10 fail sekali**, kemudian swipe untuk refresh gallery.
-  - Fail yang dah dihantar dilangkau, ikut rekod dalam `adb-sent.json`.
-  - Simple Gallery Pro di-restart **setiap 2 minit** (boleh ubah).
-  - **Tether mode**: buka fail terakhir dalam Simple Gallery Pro, tanpa auto restart.
+- **START SENDING** (auto-send): setiap 5 saat app semak senarai fail dalam folder phone. Setiap JPG kamera dalam `LIVEFOLDER` (folder atas sahaja) yang `<nama>.webp`-nya belum ada dalam phone → WebP saiz penuh quality 50 → terus di-push satu-satu (ada 1 hantar 1, ada 10 hantar 10). Nama kamera kekal.
+  - Rekod satu-satunya ialah isi folder phone, jadi bila app dibuka semula / tertutup tiba-tiba, app sambung dari apa yang belum ada dalam phone.
+  - WebP tak disimpan di Mac (fail sementara dipadam lepas push). Fail dalam LIVEFOLDER tak diusik. Fail yang dah dinamakan semula (`… - 1.jpg`, `… - xx.jpg`) tak di-push.
+  - Bila auto-send ON, **PRINT tab tak push apa-apa** ke phone.
+  - Simple Gallery Pro di-restart setiap 2 minit (boleh ubah). **Tether mode**: lepas setiap fail dihantar, fail tu terus dibuka dalam Simple Gallery Pro (tiada auto restart).
+- Bila auto-send OFF: refresh nama dalam PRINT tab push `TINGKATAN 1C - 1…5.webp` (disimpan dalam `LIVEFOLDER/WEBP/`).
 - **PULL DOWN REFRESH**, **RESTART GALLERY**, **SCRCPY**.
-- **FORGET SENT RECORD**: hantar semula semua.
 - **CLEAR PHONE FOLDER** (merah): padam isi folder phone.
 
 Semua pergerakan fail ditulis dalam kotak log dan dalam `root/log/`.

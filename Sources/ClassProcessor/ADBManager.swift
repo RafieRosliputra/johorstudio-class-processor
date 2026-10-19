@@ -1,9 +1,14 @@
 import Foundation
 import Combine
 
-/// The ADB part of the old "JohorStudio LiveFolder" app:
-/// every new JPG in LIVEFOLDER → full size WebP (quality 50) in LIVEFOLDER/WEBP → pushed to the phone
-/// in batches of up to 10, then the gallery is refreshed. Simple Gallery Pro is restarted every 2 minutes.
+/// The ADB part of the old "JohorStudio LiveFolder" app.
+///
+/// AUTO-SEND (START SENDING): every 5 s, each camera JPG in LIVEFOLDER (top level only) whose
+/// "<name>.webp" is not on the phone yet → full size WebP (quality 50, temp file only) → pushed at once.
+/// The phone's folder listing is the only record, so a restart / crash simply resumes.
+/// While auto-send is on, the PRINT tab does not push anything.
+///
+/// Otherwise (auto-send off) the PRINT tab pushes "<class> - n.webp" (kept in LIVEFOLDER/WEBP).
 @MainActor
 final class ADBManager: ObservableObject {
     static let galleryPackage = "com.simplemobiletools.gallery.pro"
@@ -17,16 +22,16 @@ final class ADBManager: ObservableObject {
     @Published private(set) var running = false
     @Published private(set) var busy = false
     @Published private(set) var pendingCount = 0
-    @Published private(set) var sentCount = 0
+    @Published private(set) var phoneCount = 0
     @Published private(set) var adbPath: String?
 
-    private var sent = Set<String>()
+    /// Auto-send on/off as seen from the send queue (stops a long round promptly).
+    private let autoFlag = LockedFlag()
     /// Loaded photos to send now as "<class> - n.webp", even when auto-send is off.
     private var priority: [(src: URL, name: String)] = []
     private var statusTimer: Timer?
     private var workTimer: Timer?
     private var galleryTimer: Timer?
-    private let monitor = FolderMonitor()
     /// Quick adb commands (devices, swipe, gallery…) never wait behind a batch being sent.
     private let queue = DispatchQueue(label: "classproc.adb.cmd")
     private let sendQueue = DispatchQueue(label: "classproc.adb.send", qos: .utility)
@@ -58,12 +63,11 @@ final class ADBManager: ObservableObject {
             return
         }
         Log.ok("adb: \(adbPath)")
-        loadSent()
         restartServer()
         statusTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refreshDevices(quiet: true) }
         }
-        workTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
+        workTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.kick() }
         }
     }
@@ -216,31 +220,6 @@ final class ADBManager: ObservableObject {
         }
     }
 
-    // MARK: - Sent record
-
-    private func loadSent() {
-        guard let url = app?.paths.sentFile,
-              let data = try? Data(contentsOf: url),
-              let list = try? JSONDecoder().decode([String].self, from: data) else { return }
-        sent = Set(list)
-        sentCount = sent.count
-        Log.info("ADB: \(sent.count) file(s) already sent (adb-sent.json)")
-    }
-
-    private func saveSent() {
-        guard let url = app?.paths.sentFile else { return }
-        if let data = try? JSONEncoder().encode(sent.sorted()) {
-            try? data.write(to: url, options: .atomic)
-        }
-        sentCount = sent.count
-    }
-
-    func forgetSent() {
-        sent = []
-        saveSent()
-        Log.warn("ADB: sent record cleared — every JPG will be sent again")
-        updatePending()
-    }
 
     // MARK: - Auto send
 
@@ -252,20 +231,22 @@ final class ADBManager: ObservableObject {
         guard let app else { return }
         guard adbPath != nil else { Log.error("adb not installed"); return }
         running = true
-        let live = app.liveFolderURL
-        Log.ok("ADB auto-send started: \(live.path) → \(app.settings.phoneFolder)")
-        monitor.start(live) { [weak self] in
-            Task { @MainActor in self?.kick() }
+        autoFlag.set(true)
+        if !priority.isEmpty {
+            Log.info("ADB: auto-send on — \(priority.count) PRINT-tab photo(s) dropped from the queue")
+            priority.removeAll()
         }
+        Log.ok("ADB auto-send started: \(app.liveFolderURL.path) → \(app.settings.phoneFolder) (every 5s, skips what is already on the phone)")
         scheduleGallery()
         kick()
     }
 
     func stop() {
         running = false
-        monitor.stop()
+        autoFlag.set(false)
         galleryTimer?.invalidate()
         galleryTimer = nil
+        pendingCount = priority.count
         Log.info("ADB auto-send stopped")
     }
 
@@ -282,18 +263,27 @@ final class ADBManager: ObservableObject {
         }
     }
 
-    private func pending() -> [URL] {
-        guard let app else { return [] }
-        return JPGList.scan(app.liveFolderURL).filter { !sent.contains($0.lastPathComponent) }
-    }
-
     func updatePending() {
-        pendingCount = priority.count + (running ? pending().count : 0)
+        if !running { pendingCount = priority.count }
     }
 
-    /// Send these photos as WebP named `name` (camera files are only read) as soon as the phone is connected.
+    /// "TINGKATAN 1C - 3.jpg", "TINGKATAN 1C - xx (2).jpg": already renamed by RESET = already handled.
+    nonisolated static func isRenamed(_ name: String) -> Bool {
+        name.range(of: #"^.+ - (\d+|xx)( \(\d+\))?\.(jpe?g)$"#, options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
+    private var phonePath: String {
+        let f = app?.settings.phoneFolder ?? "/sdcard/Download/"
+        return f.hasSuffix("/") ? f : f + "/"
+    }
+
+    /// PRINT tab: send these photos as WebP named `name` — only while auto-send is OFF.
     func sendNow(_ items: [(src: URL, name: String)]) {
         guard adbPath != nil else { return }
+        if running {
+            Log.info("ADB: auto-send is on — PRINT tab does not push (camera files are sent by auto-send)")
+            return
+        }
         let names = Set(items.map(\.name))
         priority.removeAll { names.contains($0.name) }
         priority.append(contentsOf: items)
@@ -306,88 +296,152 @@ final class ADBManager: ObservableObject {
         kick()
     }
 
-    /// Takes the next batch (≤ 10) and sends it.
     private func kick() {
-        updatePending()
-        guard !busy, connected, let app, let adbPath, let serial else { return }
-        // Renamed copies first, then (when auto-send is on) new camera files.
-        priority.removeAll { !FileManager.default.fileExists(atPath: $0.src.path) }
-        var batch: [(src: URL, name: String)] = Array(priority.prefix(Self.batchSize))
-        let fromPriority = batch.count
-        if running, batch.count < Self.batchSize {
-            batch += pending().prefix(Self.batchSize - batch.count)
-                .map { (src: $0, name: $0.deletingPathExtension().lastPathComponent) }
+        guard !busy, connected, adbPath != nil, serial != nil else { return }
+        if running {
+            autoRound()
+        } else if !priority.isEmpty {
+            priorityBatch()
         }
-        guard !batch.isEmpty else { return }
-        priority.removeFirst(fromPriority)
+    }
+
+    /// One auto-send round: list the phone, then send every camera JPG that is not there yet, one by one.
+    private func autoRound() {
+        guard let app, let adbPath, let serial else { return }
         busy = true
-        let webpFolder = Paths.webpFolder(app.liveFolderURL)
-        let phone = app.settings.phoneFolder.hasSuffix("/") ? app.settings.phoneFolder : app.settings.phoneFolder + "/"
+        let live = app.liveFolderURL
+        let phone = phonePath
         let tether = app.settings.tether
-        Log.info("ADB: sending batch of \(batch.count)")
+        let flag = autoFlag
+        let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent("classproc-webp", isDirectory: true)
 
         sendQueue.async {
-            var ready: [(jpg: URL, webp: URL)] = []
-            try? FileManager.default.ensureDirectory(webpFolder)
-            for (k, item) in batch.enumerated() {
-                let jpg = item.src
-                // The camera may still be writing.
-                guard FileReady.isComplete(jpg) else {
-                    Task { @MainActor in Log.info("ADB: \(jpg.lastPathComponent) still writing — next round") }
-                    continue
+            func finish(_ pending: Int, _ onPhone: Int) {
+                Task { @MainActor in
+                    self.pendingCount = pending
+                    if onPhone >= 0 { self.phoneCount = onPhone }
+                    self.busy = false
                 }
-                let webp = webpFolder.appendingPathComponent(item.name + ".webp")
-                // Class-named WebP are always made fresh (an older set may have used the same name).
-                if k < fromPriority || !FileManager.default.fileExists(atPath: webp.path) {
-                    do {
-                        let t0 = Date()
-                        guard let image = Imaging.full(jpg) else { throw AppError.cannotRead(jpg.lastPathComponent) }
-                        let data = try ImageExport.webpData(image, quality: 50)
-                        try ImageExport.writeAtomically(data, to: webp)
-                        Task { @MainActor in Log.ok("WebP: \(webp.lastPathComponent) (\(image.width)×\(image.height), \(data.count / 1024) KB, \(String(format: "%.1f", Date().timeIntervalSince(t0)))s)") }
-                    } catch {
-                        Task { @MainActor in Log.error("WebP \(jpg.lastPathComponent): \(error.localizedDescription)") }
-                        continue
-                    }
-                }
-                ready.append((jpg, webp))
             }
+            // 1. What is on the phone already (the only record — survives restarts and crashes).
+            let ls = Self.run(adbPath, ["-s", serial, "shell", "ls -1 '\(phone)'"])
+            guard ls.status == 0 else {
+                let msg = ls.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                Task { @MainActor in Log.error("ADB: cannot list \(phone): \(msg)") }
+                finish(0, -1)
+                return
+            }
+            var onPhone = Set(ls.text.split(whereSeparator: \.isNewline)
+                .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty })
 
-            var pushedNames: [String] = []
+            // 2. Camera JPGs in LIVEFOLDER (top level) not on the phone, not already renamed.
+            let todo = JPGList.scan(live).filter {
+                !Self.isRenamed($0.lastPathComponent)
+                    && !onPhone.contains($0.deletingPathExtension().lastPathComponent + ".webp")
+            }
+            if todo.isEmpty {
+                finish(0, onPhone.count)
+                return
+            }
+            try? FileManager.default.ensureDirectory(tmpDir)
+            var pushed = 0
+            for (n, jpg) in todo.enumerated() {
+                guard flag.get() else { break }
+                // Still being written by the camera, or renamed/moved meanwhile: next round.
+                guard FileManager.default.fileExists(atPath: jpg.path), FileReady.isComplete(jpg) else { continue }
+                let name = jpg.deletingPathExtension().lastPathComponent + ".webp"
+                let tmp = tmpDir.appendingPathComponent(name)
+                do {
+                    let t0 = Date()
+                    guard let image = Imaging.full(jpg) else { throw AppError.cannotRead(jpg.lastPathComponent) }
+                    let data = try ImageExport.webpData(image, quality: 50)
+                    try data.write(to: tmp, options: .atomic)
+                    let r = Self.run(adbPath, ["-s", serial, "push", tmp.path, phone])
+                    try? FileManager.default.removeItem(at: tmp)
+                    guard r.status == 0 else {
+                        let msg = r.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                        Task { @MainActor in Log.error("ADB push \(name) failed: \(msg)") }
+                        break
+                    }
+                    pushed += 1
+                    onPhone.insert(name)
+                    let secs = String(format: "%.1f", Date().timeIntervalSince(t0))
+                    let left = todo.count - n - 1
+                    let kb = data.count / 1024
+                    Task { @MainActor in
+                        Log.ok("ADB: \(name) → phone (\(kb) KB, \(secs)s)\(left > 0 ? " — \(left) more" : "")")
+                        self.pendingCount = left
+                    }
+                    if tether {
+                        _ = Self.run(adbPath, ["-s", serial, "shell", "am", "start", "-a", "android.intent.action.VIEW",
+                                               "-d", "file://\(phone)\(name)", "-t", "image/webp",
+                                               "-n", "\(Self.galleryPackage)/.activities.PhotoActivity"])
+                    }
+                } catch {
+                    try? FileManager.default.removeItem(at: tmp)
+                    Task { @MainActor in Log.error("WebP \(jpg.lastPathComponent): \(error.localizedDescription)") }
+                }
+            }
+            if pushed > 0, !tether {
+                _ = Self.run(adbPath, ["-s", serial, "shell", "input", "swipe", "500", "200", "500", "1200", "300"])
+            }
+            finish(max(0, todo.count - pushed), onPhone.count)
+        }
+    }
+
+    /// PRINT tab push (auto-send off): "<class> - n.webp", kept in LIVEFOLDER/WEBP.
+    private func priorityBatch() {
+        guard let app, let adbPath, let serial else { return }
+        priority.removeAll { !FileManager.default.fileExists(atPath: $0.src.path) }
+        let batch = Array(priority.prefix(Self.batchSize))
+        guard !batch.isEmpty else { return }
+        priority.removeFirst(batch.count)
+        busy = true
+        let webpFolder = WorkPaths.webp(in: app.liveFolderURL)
+        let phone = phonePath
+        let tether = app.settings.tether
+        Log.info("ADB: sending \(batch.count) photo(s)")
+
+        sendQueue.async {
+            var ready: [URL] = []
+            try? FileManager.default.ensureDirectory(webpFolder)
+            for item in batch {
+                let webp = webpFolder.appendingPathComponent(item.name + ".webp")
+                do {
+                    let t0 = Date()
+                    guard let image = Imaging.full(item.src) else { throw AppError.cannotRead(item.src.lastPathComponent) }
+                    let data = try ImageExport.webpData(image, quality: 50)
+                    try ImageExport.writeAtomically(data, to: webp)
+                    let secs = String(format: "%.1f", Date().timeIntervalSince(t0))
+                    let kb = data.count / 1024
+                    Task { @MainActor in Log.ok("WebP: \(webp.lastPathComponent) (\(kb) KB, \(secs)s)") }
+                    ready.append(webp)
+                } catch {
+                    Task { @MainActor in Log.error("WebP \(item.src.lastPathComponent): \(error.localizedDescription)") }
+                }
+            }
+            var failed = false
             if !ready.isEmpty {
-                Task { @MainActor in Log.info("ADB: pushing \(ready.count) WebP…") }
-                let r = Self.run(adbPath, ["-s", serial, "push"] + ready.map(\.webp.path) + [phone])
+                let r = Self.run(adbPath, ["-s", serial, "push"] + ready.map(\.path) + [phone])
                 if r.status == 0 {
-                    // The camera file counts as sent (auto-send will not send it again under its own name).
-                    pushedNames = ready.map(\.jpg.lastPathComponent)
-                    let shown = ready.map(\.webp.lastPathComponent).joined(separator: ", ")
+                    let shown = ready.map(\.lastPathComponent).joined(separator: ", ")
                     Task { @MainActor in Log.ok("ADB: on phone: \(shown)") }
                     if tether, let last = ready.last {
-                        let remote = "file://\(phone)\(last.webp.lastPathComponent)"
                         _ = Self.run(adbPath, ["-s", serial, "shell", "am", "start", "-a", "android.intent.action.VIEW",
-                                               "-d", remote, "-t", "image/webp",
+                                               "-d", "file://\(phone)\(last.lastPathComponent)", "-t", "image/webp",
                                                "-n", "\(Self.galleryPackage)/.activities.PhotoActivity"])
                     } else {
                         _ = Self.run(adbPath, ["-s", serial, "shell", "input", "swipe", "500", "200", "500", "1200", "300"])
                     }
                 } else {
+                    failed = true
                     let msg = r.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                    let retry = Array(batch.prefix(fromPriority))
-                    Task { @MainActor in
-                        Log.error("ADB push failed: \(msg)")
-                        self.priority.insert(contentsOf: retry, at: 0)
-                    }
+                    Task { @MainActor in Log.error("ADB push failed: \(msg)") }
                 }
             }
-
-            let pushed = pushedNames
+            let failedFlag = failed
             Task { @MainActor in
-                for name in pushed { self.sent.insert(name) }
-                if !pushed.isEmpty {
-                    self.saveSent()
-                    Log.ok("ADB: pushed \(pushed.count) → \(phone)")
-                    if tether { Log.info("ADB: opened on phone (tether)") }
-                }
+                if failedFlag { self.priority.insert(contentsOf: batch, at: 0) }
                 self.busy = false
                 self.updatePending()
             }
@@ -395,6 +449,10 @@ final class ADBManager: ObservableObject {
     }
 }
 
-enum Paths {
-    static func webpFolder(_ live: URL) -> URL { WorkPaths.webp(in: live) }
+/// A Bool shared with the send queue.
+final class LockedFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = false
+    func set(_ v: Bool) { lock.lock(); value = v; lock.unlock() }
+    func get() -> Bool { lock.lock(); defer { lock.unlock() }; return value }
 }

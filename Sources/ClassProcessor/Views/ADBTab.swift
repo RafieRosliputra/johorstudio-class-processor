@@ -5,7 +5,6 @@ struct ADBTab: View {
     @EnvironmentObject var app: AppState
     @ObservedObject var adb: ADBManager
     @StateObject private var confirmClear = Box(false)
-    @StateObject private var confirmForget = Box(false)
     @Environment(\.uiScale) private var s
 
     var body: some View {
@@ -47,13 +46,13 @@ struct ADBTab: View {
                 section("2. Auto send LIVEFOLDER → phone") {
                     Button(adb.running ? "STOP SENDING" : "START SENDING") { adb.toggle() }
                         .buttonStyle(PanelButtonStyle(highlighted: adb.running))
-                    Text("Every new JPG → full size WebP (quality 50) in LIVEFOLDER/WEBP → pushed \(ADBManager.batchSize) at a time. Files already sent are skipped (adb-sent.json).")
+                    Text("Every 5 s: each camera JPG in LIVEFOLDER that is not on the phone yet → full size WebP (quality 50) → pushed right away, same name. Nothing is saved on the Mac and LIVEFOLDER is not touched. While this is on, the PRINT tab does not push.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                     HStack(spacing: 20) {
                         Text("Waiting: \(adb.pendingCount)")
-                        Text("Sent: \(adb.sentCount)")
+                        Text("On phone: \(adb.phoneCount)")
                         if adb.busy {
                             ProgressView().controlSize(.small)
                             Text("sending…").foregroundStyle(.secondary)
@@ -88,13 +87,9 @@ struct ADBTab: View {
                             .buttonStyle(PanelButtonStyle())
                     }
                     .disabled(!adb.connected)
-                    HStack(spacing: 10) {
-                        Button("FORGET SENT RECORD") { confirmForget.value = true }
-                            .buttonStyle(PanelButtonStyle())
-                        Button("CLEAR PHONE FOLDER") { confirmClear.value = true }
-                            .buttonStyle(PanelButtonStyle(destructive: true))
-                            .disabled(!adb.connected)
-                    }
+                    Button("CLEAR PHONE FOLDER") { confirmClear.value = true }
+                        .buttonStyle(PanelButtonStyle(destructive: true))
+                        .disabled(!adb.connected)
                 }
                 Spacer(minLength: 0)
             }
@@ -110,12 +105,6 @@ struct ADBTab: View {
             Button("DELETE", role: .destructive) { adb.clearPhoneFolder() }
         } message: {
             Text("Everything in \(app.settings.phoneFolder) on the phone will be deleted.")
-        }
-        .alert("Forget sent record?", isPresented: $confirmForget.value) {
-            Button("Cancel", role: .cancel) {}
-            Button("Forget", role: .destructive) { adb.forgetSent() }
-        } message: {
-            Text("Every JPG still in LIVEFOLDER will be sent to the phone again.")
         }
     }
 

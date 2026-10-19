@@ -5,7 +5,6 @@ import Foundation
 ///     <root>/                              e.g. Desktop/2026 SMK Kulai Besar Class Photo/
 ///       JohorStudio-Class-Processor.app
 ///       settings.json
-///       adb-sent.json                      names already pushed to the phone
 ///       LIVEFOLDER/                        JPG from the camera
 ///         DONE/                            originals after PROCESS (renamed by class)
 ///         WEBP/                            full size WebP sent to the phone
@@ -33,7 +32,6 @@ struct WorkPaths {
     var cache: URL { root.appendingPathComponent("cache", isDirectory: true) }
     var textPNG: URL { cache.appendingPathComponent("classname.png") }
     var settingsFile: URL { root.appendingPathComponent("settings.json") }
-    var sentFile: URL { root.appendingPathComponent("adb-sent.json") }
 
     static func done(in live: URL) -> URL { live.appendingPathComponent("DONE", isDirectory: true) }
     static func webp(in live: URL) -> URL { live.appendingPathComponent("WEBP", isDirectory: true) }

@@ -442,6 +442,10 @@ final class AppState: ObservableObject {
               !rendered.trimmingCharacters(in: .whitespaces).isEmpty else { return }
         let cls = Self.safeFileName(rendered)
         setClass = cls
+        if adb.running {
+            Log.info("ADB auto-send is on — PRINT tab does not push to the phone")
+            return
+        }
         let suffix = plannedSuffixes()
         let key = cls + "|" + red.sorted().map(String.init).joined(separator: ",")
         guard webpSentFor != key else { return }
