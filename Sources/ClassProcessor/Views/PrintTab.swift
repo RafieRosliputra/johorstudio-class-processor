@@ -45,21 +45,16 @@ struct BigPreview: View {
                 if let main = app.photos.first, let cg = main.preview {
                     let area = app.photoArea
                     let pr = Imaging.photoRect(photo: main.size, area: area, zoom: app.settings.zoom, offset: app.offset)
-                    ZStack(alignment: .topLeading) {
-                        Image(decorative: cg, scale: 1)
-                            .resizable()
-                            .interpolation(.high)
-                            .frame(width: pr.width * k, height: pr.height * k)
-                            .position(x: pr.midX * k, y: pr.midY * k)
+                    // Drawn inside a Canvas exactly the size of the photo area: a zoomed photo must never
+                    // become a view bigger than the preview, or it covers the tabs / buttons
+                    // (the "ADB tab / PROCESS can't be pressed" bug).
+                    Canvas { ctx, _ in
+                        let r = CGRect(x: (pr.minX - area.minX) * k, y: (pr.minY - area.minY) * k,
+                                       width: pr.width * k, height: pr.height * k)
+                        ctx.draw(Image(decorative: cg, scale: 1).resizable().interpolation(.high), in: r)
                     }
-                    .frame(width: dw, height: dh)
-                    .mask(
-                        Rectangle()
-                            .frame(width: area.width * k, height: area.height * k)
-                            .position(x: area.midX * k, y: area.midY * k)
-                    )
-                    // The zoomed photo is much bigger than the preview: it must never take clicks,
-                    // or it covers the tabs / buttons (the "ADB tab hangs" bug).
+                    .frame(width: area.width * k, height: area.height * k)
+                    .position(x: area.midX * k, y: area.midY * k)
                     .allowsHitTesting(false)
                 } else {
                     Color(white: 0.15)
@@ -171,7 +166,13 @@ struct PanZoomCatcher: NSViewRepresentable {
         }
 
         override func mouseUp(with event: NSEvent) {
-            guard start != nil else { return }
+            guard let s0 = start else { return }
+            let p = convert(event.locationInWindow, from: nil)
+            if !moved, abs(p.x - s0.x) > 3 || abs(p.y - s0.y) > 3 {
+                // Drag without intermediate events (fast flick): still a move, not a click.
+                moved = true
+                onDrag(CGSize(width: p.x - s0.x, height: p.y - s0.y))
+            }
             start = nil
             NSCursor.pop()
             onEnd()

@@ -441,9 +441,12 @@ final class AppState: ObservableObject {
         let done = WorkPaths.done(in: liveFolderURL)
         try? fm.ensureDirectory(done)
         var fresh: [URL] = []
-        for (i, photo) in photos.enumerated() {
+        var todo: [Int] = []
+        // 1. Trash every copy whose name changed first, so the new names are free.
+        for i in 0..<photos.count {
             let base = "\(cls) - \(suffix[i] ?? "xx")"
             if copyBase[i] == base, let c = copies[i], fm.fileExists(atPath: c.path) { continue }
+            todo.append(i)
             if let old = copies[i], fm.fileExists(atPath: old.path) {
                 do {
                     try fm.trashItem(at: old, resultingItemURL: nil)
@@ -452,6 +455,13 @@ final class AppState: ObservableObject {
                     Log.warn("Cannot trash \(old.lastPathComponent): \(error.localizedDescription)")
                 }
             }
+            copies[i] = nil
+            copyBase[i] = nil
+        }
+        // 2. Copy with the new names.
+        for i in todo {
+            let photo = photos[i]
+            let base = "\(cls) - \(suffix[i] ?? "xx")"
             let ext = photo.url.pathExtension.lowercased().isEmpty ? "jpg" : photo.url.pathExtension.lowercased()
             let dest = fm.freeName(base, ext: ext, in: done)
             do {
