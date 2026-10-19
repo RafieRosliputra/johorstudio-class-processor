@@ -68,7 +68,8 @@ master overlay at 4R, ready for the printer, with a copy on the customer's phone
 | **Internet on the first build** | Swift Package Manager downloads [libwebp](https://github.com/SDWebImage/libwebp-Xcode) (WebP encoder, linked into the app). | — |
 | **Adobe Photoshop 2026** | Renders the class name from `textLayer.psb`. | Creative Cloud |
 | **Android platform tools (`adb`)** | Sends photos to the phone. Expected at `/opt/homebrew/bin/adb`. | `brew install android-platform-tools` |
-| **Homebrew** | Installs `adb` and `scrcpy`. | [brew.sh](https://brew.sh) |
+| **Homebrew** | Installs `adb`, `scrcpy` and the GitHub CLI. | [brew.sh](https://brew.sh) |
+| **GitHub account with access** + **GitHub CLI** (`gh`) | The repository is private. `gh auth login` lets `git` clone and pull. | `brew install gh` |
 | *Optional:* **scrcpy** | Shows the phone screen on the Mac (SCRCPY button). | `brew install scrcpy` |
 | **Android phone** with **USB debugging** on, and **Simple Gallery Pro** | Shows the photos to the customer. | Developer options › USB debugging |
 | **Printer** set as the macOS **default printer**, plus its **hotfolder** software | PRINT SAMPLES copies JPGs into the hotfolder. PURGE PRINTER clears the default printer's queue. | Printer driver / hotfolder app |
@@ -100,9 +101,11 @@ xcode-select --install
 # 2. adb (and optionally scrcpy)
 brew install android-platform-tools scrcpy
 
-# 3. Get the code
+# 3. Sign in to GitHub (the repository is private) and get the code
+brew install gh
+gh auth login            # GitHub.com › HTTPS › Login with a web browser
 cd ~/Desktop
-git clone https://github.com/RafieRosliputra/johorstudio-class-processor.git
+gh repo clone RafieRosliputra/johorstudio-class-processor
 cd johorstudio-class-processor
 
 # 4. Build
