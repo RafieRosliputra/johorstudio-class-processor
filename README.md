@@ -23,10 +23,9 @@ Letak app dalam folder event. Folder tu dikira **root**.
 Desktop/2026 SMK Kulai Besar Class Photo/     ← root
   JohorStudio-Class-Processor.app
   settings.json          ← semua setting, termasuk saiz & kedudukan foto (auto)
-  adb-sent.json          ← nama fail yang dah dihantar ke phone (auto)
   LIVEFOLDER/            ← JPG dari kamera (Directory boleh tukar)
     DONE/                ← fail asal lepas PROCESS: "TINGKATAN 1C - 1.jpg"…
-    WEBP/                ← WebP saiz penuh (quality 50) yang dihantar ke phone
+    WEBP/                ← WebP nama kelas dari PRINT tab (bila auto-send OFF)
   PRINTS/                ← hasil 1800×1200 JPG: "TINGKATAN 1C - 1.jpg"…
   log/2026-10-19.log     ← semua log
   cache/classname.png    ← teks nama kelas dari Photoshop
