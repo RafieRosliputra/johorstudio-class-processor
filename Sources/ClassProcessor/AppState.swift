@@ -51,9 +51,11 @@ final class AppState: ObservableObject {
     @Published private(set) var loading = false
     @Published private(set) var processing = false
     @Published private(set) var liveCount = 0
-    /// Set by PROCESS / PRINT SAMPLES: class name + suffix per loaded photo ("1"…"5", red = "xx").
-    /// The camera files are renamed with it and moved to DONE on RESET PHOTO.
-    @Published private(set) var pendingRename: (name: String, suffix: [Int: String])?
+    /// Renamed COPIES of the loaded camera files in LIVEFOLDER/DONE ("<class> - 1…5", red = "xx"),
+    /// made on refresh / PROCESS / PRINT SAMPLES. The originals stay untouched until RESET & RENAME.
+    @Published private(set) var copies: [Int: URL] = [:]
+    private var copyBase: [Int: String] = [:]
+    var hasCopies: Bool { !copies.isEmpty }
 
     let adb = ADBManager()
 
@@ -105,6 +107,11 @@ final class AppState: ObservableObject {
         watchLiveFolder()
         adb.startup()
         Log.info("Startup finished")
+        // Start every session with XXX in the text layer.
+        settings.className = "XXX"
+        if settings.psbPath != nil, settings.renderedName != "XXX" || textImage == nil {
+            Task { await refreshText(makeCopies: false) }
+        }
         // Testing: `open App.app --args --load /path/first.jpg`
         let args = CommandLine.arguments
         if let i = args.firstIndex(of: "--load"), i + 1 < args.count {
@@ -292,7 +299,7 @@ final class AppState: ObservableObject {
 
     /// Photoshop: put the class name into the text layer, save the PSB, export PNG.
     @discardableResult
-    func refreshText() async -> Bool {
+    func refreshText(makeCopies: Bool = true) async -> Bool {
         guard let psb = settings.psbPath else {
             alert = AlertItem(title: "No textLayer.psb", message: "Press CLASS NAME and choose textLayer.psb first.")
             return false
@@ -321,6 +328,7 @@ final class AppState: ObservableObject {
             textImage = img
             settings.renderedName = name
             Log.ok("Photoshop: class name updated to \"\(name)\" (\(result), \(String(format: "%.1f", Date().timeIntervalSince(start)))s)")
+            if makeCopies { syncCopies() }
             return true
         } catch {
             Log.error("Photoshop: \(error.localizedDescription)")
@@ -354,8 +362,8 @@ final class AppState: ObservableObject {
                               message: "Only \(set.count) photo(s) from \(first.lastPathComponent). 6 are needed — nothing loaded.")
             return
         }
-        if pendingRename != nil {
-            Log.info("New set loaded — renaming the processed set first")
+        if hasCopies {
+            Log.info("New set loaded — finishing RESET & RENAME for the previous set first")
             renameProcessed()
         }
         loading = true
@@ -394,41 +402,118 @@ final class AppState: ObservableObject {
         }
     }
 
-    /// RESET PHOTO: unload the photos, class name box → XXX (textLayer.psb is not touched).
+    /// RESET PHOTO: rename (if copies were made), unload, class name → XXX in the box AND the text layer.
     func resetPhotos() {
         renameProcessed()
         photos = []
         red = []
         settings.className = "XXX"
         Log.info("Reset: no photo loaded, class name → XXX")
+        if settings.psbPath != nil {
+            Task { await refreshText(makeCopies: false) }
+        }
     }
 
-    /// Rename the processed camera files in LIVEFOLDER to "<class> - 1…5" (red: "<class> - xx")
-    /// and move them to LIVEFOLDER/DONE. Contents are never touched.
-    func renameProcessed() {
-        guard let plan = pendingRename else { return }
-        pendingRename = nil
+    /// Suffix per loaded photo: photos that are not red get 1…5 in order, red ones (and a 6th) get "xx".
+    func plannedSuffixes() -> [Int: String] {
+        var out: [Int: String] = [:]
+        var n = 0
+        for i in 0..<photos.count {
+            if !red.contains(i), n < Self.masterCount {
+                n += 1
+                out[i] = String(n)
+            } else {
+                out[i] = "xx"
+            }
+        }
+        return out
+    }
+
+    /// Copy the 6 loaded camera files to LIVEFOLDER/DONE as "<class> - 1…5 / xx" (originals untouched),
+    /// then send them to the phone (WebP). Copies already matching their name are kept.
+    func syncCopies() {
+        guard photos.count == Self.setSize,
+              let rendered = settings.renderedName, rendered != "XXX",
+              !rendered.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        let cls = Self.safeFileName(rendered)
+        let suffix = plannedSuffixes()
         let fm = FileManager.default
         let done = WorkPaths.done(in: liveFolderURL)
         try? fm.ensureDirectory(done)
+        var fresh: [URL] = []
+        for (i, photo) in photos.enumerated() {
+            let base = "\(cls) - \(suffix[i] ?? "xx")"
+            if copyBase[i] == base, let c = copies[i], fm.fileExists(atPath: c.path) { continue }
+            if let old = copies[i], fm.fileExists(atPath: old.path) {
+                do {
+                    try fm.trashItem(at: old, resultingItemURL: nil)
+                    Log.info("TRASH old copy DONE/\(old.lastPathComponent)")
+                } catch {
+                    Log.warn("Cannot trash \(old.lastPathComponent): \(error.localizedDescription)")
+                }
+            }
+            let ext = photo.url.pathExtension.lowercased().isEmpty ? "jpg" : photo.url.pathExtension.lowercased()
+            let dest = fm.freeName(base, ext: ext, in: done)
+            do {
+                try fm.copyItem(at: photo.url, to: dest)
+                copies[i] = dest
+                copyBase[i] = base
+                fresh.append(dest)
+                Log.ok("COPY \(photo.url.lastPathComponent) → DONE/\(dest.lastPathComponent)")
+            } catch {
+                copies[i] = nil
+                copyBase[i] = nil
+                Log.error("COPY \(photo.url.lastPathComponent): \(error.localizedDescription)")
+            }
+        }
+        if !fresh.isEmpty { adb.sendNow(fresh) }
+    }
+
+    /// RESET & RENAME: the renamed copies are already in DONE, so the camera originals go to the Trash.
+    /// (An original without a matching copy is renamed and moved to DONE instead.) Contents never change.
+    func renameProcessed() {
+        guard hasCopies else { return }
+        let fm = FileManager.default
+        let done = WorkPaths.done(in: liveFolderURL)
+        try? fm.ensureDirectory(done)
+        let suffix = plannedSuffixes()
+        let cls = copyBase.values.first.map { String($0[..<($0.range(of: " - ", options: .backwards)?.lowerBound ?? $0.endIndex)]) }
+            ?? Self.safeFileName(settings.renderedName ?? "CLASS")
         for (i, photo) in photos.enumerated() {
             let src = photo.url
             guard fm.fileExists(atPath: src.path) else {
                 Log.warn("RENAME \(src.lastPathComponent): file not found")
                 continue
             }
-            let suffix = plan.suffix[i] ?? "xx"
+            if let copy = copies[i], fm.fileExists(atPath: copy.path),
+               FileReady.fileSize(copy) == FileReady.fileSize(src) {
+                do {
+                    try fm.trashItem(at: src, resultingItemURL: nil)
+                    Log.ok("TRASH \(src.lastPathComponent) (already in DONE as \(copy.lastPathComponent))")
+                } catch {
+                    Log.error("TRASH \(src.lastPathComponent): \(error.localizedDescription)")
+                }
+                continue
+            }
             let ext = src.pathExtension.lowercased().isEmpty ? "jpg" : src.pathExtension.lowercased()
-            let dest = fm.freeName("\(plan.name) - \(suffix)", ext: ext, in: done)
+            let dest = fm.freeName(copyBase[i] ?? "\(cls) - \(suffix[i] ?? "xx")", ext: ext, in: done)
             do {
                 try fm.moveItem(at: src, to: dest)
-                photos[i].url = dest
                 Log.ok("RENAME \(src.lastPathComponent) → DONE/\(dest.lastPathComponent)")
             } catch {
                 Log.error("RENAME \(src.lastPathComponent): \(error.localizedDescription)")
             }
         }
+        copies = [:]
+        copyBase = [:]
         countLive()
+    }
+
+    // MARK: - Text layer size & position
+
+    func nudgeText(dx: Double, dy: Double) {
+        settings.textArea.x += dx
+        settings.textArea.y += dy
     }
 
     // MARK: - Zoom & position (master pixels, saved in settings)
@@ -505,7 +590,7 @@ final class AppState: ObservableObject {
 
         if textOutdated {
             Log.info("Class name text is not \"\(settings.className)\" yet — refreshing first")
-            guard await refreshText() else { return }
+            guard await refreshText(makeCopies: false) else { return }
         }
         // File names follow the text layer exactly: "TINGKATAN 1C - 1.jpg".
         let cls = Self.safeFileName(settings.renderedName ?? settings.className)
@@ -517,6 +602,7 @@ final class AppState: ObservableObject {
         let text = textImage
         let area = photoArea
         let textArea = settings.textArea.cgRect
+        let textScale = settings.textScale
         let zoom = settings.zoom
         let offset = self.offset
         let prints = paths.prints
@@ -540,7 +626,7 @@ final class AppState: ObservableObject {
                         let px = Int(ceil(max(rect.width, rect.height)))
                         guard let photo = Imaging.preview(job.url, maxPixels: px) else { throw AppError.cannotRead(job.url.lastPathComponent) }
                         let image = try Imaging.render(photo: photo, master: job.master, text: text, area: area,
-                                                       textArea: textArea, zoom: zoom, offset: offset)
+                                                       textArea: textArea, textScale: textScale, zoom: zoom, offset: offset)
                         let data = try ImageExport.jpegData(image)
                         try ImageExport.writeAtomically(data, to: out)
                         Log.ok("EXPORT \(job.url.lastPathComponent) + master\(job.number) → PRINTS/\(name)")
@@ -570,14 +656,33 @@ final class AppState: ObservableObject {
             }
         }.value
 
-        var suffix: [Int: String] = [:]
-        for job in jobs { suffix[job.index] = String(job.number) }
-        pendingRename = (cls, suffix)
-        Log.info("Camera files are renamed (\(cls) - 1…, red = xx) and moved to DONE when you press RESET PHOTO")
+        syncCopies()
+        Log.info("Camera originals stay in LIVEFOLDER until RESET & RENAME")
         Log.ok("\(printSamples ? "PRINT SAMPLES" : "PROCESS") finished: \(cls)")
     }
 
     // MARK: - Printer
+
+    /// Right-click on PURGE PRINTER: the macOS print queue (Print Center on macOS 27).
+    func openPrinterQueue() {
+        let ws = NSWorkspace.shared
+        if let app = ws.urlForApplication(withBundleIdentifier: "com.apple.printcenter") {
+            ws.openApplication(at: app, configuration: NSWorkspace.OpenConfiguration())
+            Log.info("Opened Print Center (printer queue)")
+            return
+        }
+        let printers = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Printers")
+        if let proxy = (try? FileManager.default.contentsOfDirectory(at: printers, includingPropertiesForKeys: nil))?
+            .first(where: { $0.pathExtension == "app" }) {
+            ws.open(proxy)
+            Log.info("Opened printer queue \(proxy.deletingPathExtension().lastPathComponent)")
+            return
+        }
+        if let url = URL(string: "x-apple.systempreferences:com.apple.Print-Scan-Settings.extension") {
+            ws.open(url)
+            Log.info("Opened Printers & Scanners")
+        }
+    }
 
     func purgePrinter() {
         Task {

@@ -23,6 +23,7 @@ struct AppSettings: Codable, Equatable {
     var className = "XXX"
     var renderedName: String?        // class name currently inside cache/classname.png
     var textArea = AreaRect.textDefault
+    var textScale = 100.0            // % of the fitted size, around the centre of the text area
 
     // Photo placement — kept until changed, applied to every new set.
     var zoom = 1.0                   // 1 = fill the photo area
@@ -50,6 +51,7 @@ struct AppSettings: Codable, Equatable {
         className = try c.decodeIfPresent(String.self, forKey: .className) ?? d.className
         renderedName = try c.decodeIfPresent(String.self, forKey: .renderedName)
         textArea = try c.decodeIfPresent(AreaRect.self, forKey: .textArea) ?? d.textArea
+        textScale = try c.decodeIfPresent(Double.self, forKey: .textScale) ?? d.textScale
         zoom = try c.decodeIfPresent(Double.self, forKey: .zoom) ?? d.zoom
         offsetX = try c.decodeIfPresent(Double.self, forKey: .offsetX) ?? d.offsetX
         offsetY = try c.decodeIfPresent(Double.self, forKey: .offsetY) ?? d.offsetY

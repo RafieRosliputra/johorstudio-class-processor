@@ -58,6 +58,9 @@ struct BigPreview: View {
                             .frame(width: area.width * k, height: area.height * k)
                             .position(x: area.midX * k, y: area.midY * k)
                     )
+                    // The zoomed photo is much bigger than the preview: it must never take clicks,
+                    // or it covers the tabs / buttons (the "ADB tab hangs" bug).
+                    .allowsHitTesting(false)
                 } else {
                     Color(white: 0.15)
                 }
@@ -66,14 +69,17 @@ struct BigPreview: View {
                         .resizable()
                         .interpolation(.high)
                         .frame(width: dw, height: dh)
+                        .allowsHitTesting(false)
                 }
                 if let text = app.textImage {
-                    let tr = Imaging.textRect(text: CGSize(width: text.width, height: text.height), area: app.settings.textArea.cgRect)
+                    let tr = Imaging.textRect(text: CGSize(width: text.width, height: text.height),
+                                              area: app.settings.textArea.cgRect, scale: app.settings.textScale)
                     Image(decorative: text, scale: 1)
                         .resizable()
                         .interpolation(.high)
                         .frame(width: tr.width * k, height: tr.height * k)
                         .position(x: tr.midX * k, y: tr.midY * k)
+                        .allowsHitTesting(false)
                 }
                 if app.photos.isEmpty {
                     Text(app.loading ? "loading…" : "no photo loaded")
@@ -82,8 +88,10 @@ struct BigPreview: View {
                         .padding(.horizontal, 24).padding(.vertical, 10)
                         .background(Capsule().fill(Color.black.opacity(0.6)))
                         .frame(width: dw, height: dh)
+                        .allowsHitTesting(false)
                 }
                 PanZoomCatcher(
+                    previewURL: app.photos.first?.url,
                     onBegin: { dragStart.value = app.offset },
                     onDrag: { t in
                         guard let start = dragStart.value else { return }
@@ -92,16 +100,16 @@ struct BigPreview: View {
                     onEnd: { dragStart.value = nil },
                     onScroll: { ticks, p in
                         app.zoom(ticks: ticks, anchor: CGPoint(x: p.x / k, y: p.y / k))
-                    },
-                    onDoubleClick: { if let main = app.photos.first { QuickLook.show(main.url) } }
+                    }
                 )
                 .frame(width: dw, height: dh)
                 .allowsHitTesting(!app.photos.isEmpty && !app.processing)
             }
             .frame(width: dw, height: dh)
             .clipped()
-            .overlay(Rectangle().stroke(Color(white: 0.5), lineWidth: 1))
-            .help("Drag to move • scroll to resize (applies to every photo when processed)")
+            .contentShape(Rectangle())
+            .overlay(Rectangle().stroke(Color(white: 0.5), lineWidth: 1).allowsHitTesting(false))
+            .help("Click: Quick Look • drag to move • scroll to resize (applies to every photo when processed)")
             .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
         }
     }
@@ -109,11 +117,11 @@ struct BigPreview: View {
 
 /// Mouse drag + scroll wheel on the big preview (top-left view points).
 struct PanZoomCatcher: NSViewRepresentable {
+    var previewURL: URL?
     var onBegin: () -> Void
     var onDrag: (CGSize) -> Void
     var onEnd: () -> Void
     var onScroll: (Double, CGPoint) -> Void
-    var onDoubleClick: () -> Void
 
     func makeNSView(context: Context) -> CatcherView {
         let v = CatcherView()
@@ -128,16 +136,16 @@ struct PanZoomCatcher: NSViewRepresentable {
         v.onDrag = onDrag
         v.onEnd = onEnd
         v.onScroll = onScroll
-        v.onDoubleClick = onDoubleClick
+        v.previewURL = previewURL
     }
 
-    final class CatcherView: NSView {
+    final class CatcherView: QuickLookView {
         var onBegin: () -> Void = {}
         var onDrag: (CGSize) -> Void = { _ in }
         var onEnd: () -> Void = {}
         var onScroll: (Double, CGPoint) -> Void = { _, _ in }
-        var onDoubleClick: () -> Void = {}
         private var start: CGPoint?
+        private var moved = false
         private var preciseAccum = 0.0
 
         override var isFlipped: Bool { true }
@@ -148,11 +156,8 @@ struct PanZoomCatcher: NSViewRepresentable {
         }
 
         override func mouseDown(with event: NSEvent) {
-            if event.clickCount == 2 {
-                onDoubleClick()
-                return
-            }
             start = convert(event.locationInWindow, from: nil)
+            moved = false
             NSCursor.closedHand.push()
             onBegin()
         }
@@ -160,6 +165,8 @@ struct PanZoomCatcher: NSViewRepresentable {
         override func mouseDragged(with event: NSEvent) {
             guard let start else { return }
             let p = convert(event.locationInWindow, from: nil)
+            if abs(p.x - start.x) > 3 || abs(p.y - start.y) > 3 { moved = true }
+            guard moved else { return }
             onDrag(CGSize(width: p.x - start.x, height: p.y - start.y))
         }
 
@@ -168,6 +175,8 @@ struct PanZoomCatcher: NSViewRepresentable {
             start = nil
             NSCursor.pop()
             onEnd()
+            // A click without dragging = Quick Look.
+            if !moved { toggleQuickLook() }
         }
 
         override func scrollWheel(with event: NSEvent) {
@@ -219,14 +228,14 @@ struct SmallBox: View {
                     .resizable()
                     .interpolation(.medium)
                     .aspectRatio(contentMode: .fill)
+                    .allowsHitTesting(false)
             } else {
                 Text("\(index + 1)").font(.system(size: 28 * s, weight: .bold)).foregroundStyle(Color(white: 0.35))
             }
             if isRed {
-                Color.red.opacity(0.65)
+                Color.red.opacity(0.65).allowsHitTesting(false)
             }
-            RightClickCatcher(action: { app.toggleRed(index) },
-                              doubleClick: { if let photo { QuickLook.show(photo.url) } })
+            RightClickCatcher(previewURL: photo?.url, action: { app.toggleRed(index) })
         }
         .aspectRatio(3 / 2, contentMode: .fit)
         .clipped()
@@ -240,39 +249,63 @@ struct SmallBox: View {
                     .foregroundStyle(.white)
             }
         }
-        .help("Right-click: red (not used) • double-click: Quick Look")
+        .help("Click: Quick Look • right-click: red (not used)")
         .frame(maxWidth: .infinity)
     }
 }
 
+/// Small box: click = Quick Look, right-click (or ctrl-click) = red.
 struct RightClickCatcher: NSViewRepresentable {
+    var previewURL: URL?
     var action: () -> Void
-    var doubleClick: () -> Void = {}
 
     func makeNSView(context: Context) -> CatchView {
         let v = CatchView()
         v.action = action
-        v.doubleClick = doubleClick
+        v.previewURL = previewURL
         return v
     }
 
     func updateNSView(_ nsView: CatchView, context: Context) {
         nsView.action = action
-        nsView.doubleClick = doubleClick
+        nsView.previewURL = previewURL
     }
 
-    final class CatchView: NSView {
+    final class CatchView: QuickLookView {
         var action: () -> Void = {}
-        var doubleClick: () -> Void = {}
         override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
         override func rightMouseDown(with event: NSEvent) { action() }
         override func mouseDown(with event: NSEvent) {
             if event.modifierFlags.contains(.control) {
                 action()
-            } else if event.clickCount == 2 {
-                doubleClick()
+            } else {
+                toggleQuickLook()
             }
         }
+    }
+}
+
+/// Takes ONLY right-clicks; left clicks fall through to the button underneath.
+struct RightClickOnly: NSViewRepresentable {
+    var action: () -> Void
+
+    func makeNSView(context: Context) -> RView {
+        let v = RView()
+        v.action = action
+        return v
+    }
+
+    func updateNSView(_ nsView: RView, context: Context) { nsView.action = action }
+
+    final class RView: NSView {
+        var action: () -> Void = {}
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            switch NSApp.currentEvent?.type {
+            case .rightMouseDown, .rightMouseUp: return super.hitTest(point)
+            default: return nil
+            }
+        }
+        override func rightMouseDown(with event: NSEvent) { action() }
     }
 }
 
@@ -354,14 +387,29 @@ struct RightPanel: View {
                 .disabled(app.renderingText)
                 .help("Update the class name in Photoshop (textLayer.psb)")
             }
-            TextField("CLASS NAME", text: Binding(get: { app.settings.className }, set: { app.setClassName($0) }))
-                .textFieldStyle(.plain)
-                .font(.system(size: 18 * s, weight: .medium))
-                .multilineTextAlignment(.center)
-                .foregroundStyle(Color.black)
-                .padding(.vertical, 6 * s)
-                .background(RoundedRectangle(cornerRadius: 8 * s).fill(Color.white))
-                .onSubmit { Task { await app.refreshText() } }
+            HStack(spacing: 6 * s) {
+                TextField("CLASS NAME", text: Binding(get: { app.settings.className }, set: { app.setClassName($0) }))
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 18 * s, weight: .medium))
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(Color.black)
+                    .padding(.vertical, 6 * s)
+                    .background(RoundedRectangle(cornerRadius: 8 * s).fill(Color.white))
+                    .onSubmit { Task { await app.refreshText() } }
+                // Text layer size (%) and position
+                TextField("", value: $app.settings.textScale, format: .number.precision(.fractionLength(0)))
+                    .textFieldStyle(.roundedBorder)
+                    .multilineTextAlignment(.center)
+                    .frame(width: 48 * s)
+                    .help("Class name text size %")
+                Text("%").font(.system(size: 13 * s))
+                HStack(spacing: 2) {
+                    nudge("arrow.left", dx: -1, dy: 0)
+                    nudge("arrow.up", dx: 0, dy: -1)
+                    nudge("arrow.down", dx: 0, dy: 1)
+                    nudge("arrow.right", dx: 1, dy: 0)
+                }
+            }
             small(app.textOutdated
                   ? "\(app.psbName) — press refresh (now: \(app.settings.renderedName ?? "none"))"
                   : "\(app.psbName) — \(app.settings.renderedName ?? "")")
@@ -406,14 +454,34 @@ struct RightPanel: View {
                 .frame(maxHeight: .infinity)
 
             HStack(spacing: 10 * s) {
-                Button(app.pendingRename == nil ? "RESET PHOTO" : "RESET & RENAME") { app.resetPhotos() }
-                    .buttonStyle(PanelButtonStyle(highlighted: app.pendingRename != nil))
-                    .help(app.pendingRename == nil ? "Unload the photos" : "Rename the loaded camera files (\(app.pendingRename!.name) - 1…, red = xx), move them to DONE, unload")
+                Button(app.hasCopies ? "RESET & RENAME" : "RESET PHOTO") { app.resetPhotos() }
+                    .buttonStyle(PanelButtonStyle(highlighted: app.hasCopies))
+                    .help(app.hasCopies
+                          ? "Renamed copies are in DONE: camera originals → Trash, unload, class name → XXX"
+                          : "Unload the photos, class name → XXX")
                     .disabled(app.processing)
                 Button("PURGE PRINTER") { app.confirmPurge = true }
+                    .overlay(RightClickOnly { app.openPrinterQueue() })
+                    .help("Click: purge the queue • right-click: open the printer queue")
                     .buttonStyle(PanelButtonStyle(destructive: true))
             }
         }
+    }
+
+    /// Move the class name text by 5 px (option-click: 1 px, shift-click: 20 px).
+    private func nudge(_ icon: String, dx: Double, dy: Double) -> some View {
+        Button {
+            let flags = NSEvent.modifierFlags
+            let step = flags.contains(.option) ? 1.0 : (flags.contains(.shift) ? 20.0 : 5.0)
+            app.nudgeText(dx: dx * step, dy: dy * step)
+        } label: {
+            Image(systemName: icon)
+                .font(.system(size: 11 * s, weight: .bold))
+                .frame(width: 22 * s, height: 26 * s)
+                .background(RoundedRectangle(cornerRadius: 5).fill(Color(nsColor: .controlColor)))
+        }
+        .buttonStyle(.plain)
+        .help("Move class name text (x \(Int(app.settings.textArea.x)), y \(Int(app.settings.textArea.y))) — option: 1px, shift: 20px")
     }
 
     private func small(_ text: String) -> some View {

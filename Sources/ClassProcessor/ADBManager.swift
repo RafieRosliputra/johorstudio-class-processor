@@ -21,6 +21,8 @@ final class ADBManager: ObservableObject {
     @Published private(set) var adbPath: String?
 
     private var sent = Set<String>()
+    /// Renamed copies (LIVEFOLDER/DONE) to send now, even when auto-send is off.
+    private var priority: [URL] = []
     private var statusTimer: Timer?
     private var workTimer: Timer?
     private var galleryTimer: Timer?
@@ -60,6 +62,9 @@ final class ADBManager: ObservableObject {
         restartServer()
         statusTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refreshDevices(quiet: true) }
+        }
+        workTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.kick() }
         }
     }
 
@@ -252,9 +257,6 @@ final class ADBManager: ObservableObject {
         monitor.start(live) { [weak self] in
             Task { @MainActor in self?.kick() }
         }
-        workTimer = Timer.scheduledTimer(withTimeInterval: 4, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.kick() }
-        }
         scheduleGallery()
         kick()
     }
@@ -262,9 +264,7 @@ final class ADBManager: ObservableObject {
     func stop() {
         running = false
         monitor.stop()
-        workTimer?.invalidate()
         galleryTimer?.invalidate()
-        workTimer = nil
         galleryTimer = nil
         Log.info("ADB auto-send stopped")
     }
@@ -288,15 +288,36 @@ final class ADBManager: ObservableObject {
     }
 
     func updatePending() {
-        pendingCount = pending().count
+        pendingCount = priority.count + (running ? pending().count : 0)
+    }
+
+    /// Send these renamed copies (WebP made on the way) as soon as the phone is connected.
+    func sendNow(_ copies: [URL]) {
+        guard adbPath != nil else { return }
+        let names = Set(copies.map(\.lastPathComponent))
+        priority.removeAll { names.contains($0.lastPathComponent) }
+        priority.append(contentsOf: copies)
+        if connected {
+            Log.info("ADB: \(copies.count) renamed photo(s) queued for the phone")
+        } else {
+            Log.warn("ADB: phone not connected — \(copies.count) renamed photo(s) will be sent when it is")
+        }
+        kick()
     }
 
     /// Takes the next batch (≤ 10) and sends it.
     private func kick() {
         updatePending()
-        guard running, !busy, connected, let app, let adbPath, let serial else { return }
-        let batch = Array(pending().prefix(Self.batchSize))
+        guard !busy, connected, let app, let adbPath, let serial else { return }
+        // Renamed copies first, then (when auto-send is on) new camera files.
+        priority.removeAll { !FileManager.default.fileExists(atPath: $0.path) }
+        var batch = Array(priority.prefix(Self.batchSize))
+        let fromPriority = batch.count
+        if running, batch.count < Self.batchSize {
+            batch += pending().prefix(Self.batchSize - batch.count)
+        }
         guard !batch.isEmpty else { return }
+        priority.removeFirst(fromPriority)
         busy = true
         let webpFolder = Paths.webpFolder(app.liveFolderURL)
         let phone = app.settings.phoneFolder.hasSuffix("/") ? app.settings.phoneFolder : app.settings.phoneFolder + "/"
@@ -306,14 +327,15 @@ final class ADBManager: ObservableObject {
         sendQueue.async {
             var ready: [(jpg: URL, webp: URL)] = []
             try? FileManager.default.ensureDirectory(webpFolder)
-            for jpg in batch {
+            for (k, jpg) in batch.enumerated() {
                 // The camera may still be writing.
                 guard FileReady.isComplete(jpg) else {
                     Task { @MainActor in Log.info("ADB: \(jpg.lastPathComponent) still writing — next round") }
                     continue
                 }
                 let webp = webpFolder.appendingPathComponent(jpg.deletingPathExtension().lastPathComponent + ".webp")
-                if !FileManager.default.fileExists(atPath: webp.path) {
+                // Renamed copies always get a fresh WebP (an older set may have used the same name).
+                if k < fromPriority || !FileManager.default.fileExists(atPath: webp.path) {
                     do {
                         let t0 = Date()
                         guard let image = Imaging.full(jpg) else { throw AppError.cannotRead(jpg.lastPathComponent) }
@@ -344,7 +366,11 @@ final class ADBManager: ObservableObject {
                     }
                 } else {
                     let msg = r.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                    Task { @MainActor in Log.error("ADB push failed: \(msg)") }
+                    let retry = Array(batch.prefix(fromPriority))
+                    Task { @MainActor in
+                        Log.error("ADB push failed: \(msg)")
+                        self.priority.insert(contentsOf: retry, at: 0)
+                    }
                 }
             }
 

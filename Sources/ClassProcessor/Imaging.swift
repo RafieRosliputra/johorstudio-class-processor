@@ -93,9 +93,9 @@ enum Imaging {
         return CGPoint(x: min(mx, max(-mx, offset.x)), y: min(my, max(-my, offset.y)))
     }
 
-    /// Text PNG fitted (aspect kept) and centred in the text area.
-    static func textRect(text: CGSize, area: CGRect) -> CGRect {
-        let s = min(area.width / text.width, area.height / text.height)
+    /// Text PNG fitted (aspect kept) and centred in the text area, then scaled by `scale` %.
+    static func textRect(text: CGSize, area: CGRect, scale: Double = 100) -> CGRect {
+        let s = min(area.width / text.width, area.height / text.height) * CGFloat(max(1, scale) / 100)
         let w = text.width * s, h = text.height * s
         return CGRect(x: area.midX - w / 2, y: area.midY - h / 2, width: w, height: h)
     }
@@ -104,7 +104,7 @@ enum Imaging {
 
     /// photo (under) + master + class name text → 1800×1200 sRGB.
     static func render(photo: CGImage, master: CGImage, text: CGImage?, area: CGRect, textArea: CGRect,
-                       zoom: Double, offset: CGPoint) throws -> CGImage {
+                       textScale: Double, zoom: Double, offset: CGPoint) throws -> CGImage {
         let w = Int(canvas.width), h = Int(canvas.height)
         guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
                                   space: srgb, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
@@ -126,7 +126,7 @@ enum Imaging {
         ctx.draw(master, in: CGRect(x: 0, y: 0, width: w, height: h))
 
         if let text {
-            let tr = textRect(text: CGSize(width: text.width, height: text.height), area: textArea)
+            let tr = textRect(text: CGSize(width: text.width, height: text.height), area: textArea, scale: textScale)
             ctx.draw(text, in: flip(tr))
         }
         guard let out = ctx.makeImage() else { throw AppError.renderFailed }
