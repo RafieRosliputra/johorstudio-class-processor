@@ -36,10 +36,9 @@ Desktop/2026 SMK Kulai Besar Class Photo/     ← root
 
 - **Directory**: pilih LIVEFOLDER (default `root/LIVEFOLDER`).
 - **HOTFOLDER**: folder hotfolder printer. Disimpan dalam settings.
-- **Load Photo**: pilih gambar pertama. App ambil gambar tu **dan semua gambar selepasnya** dalam folder yang sama (ikut nama fail):
-  - 1–6 gambar: semua di-load (kotak yang tiada gambar dibiarkan kosong) dan diproses macam biasa (contoh 1 gambar = 1 output).
-  - 7 gambar atau lebih: ditolak.
-  - Terlambat dan LIVEFOLDER dah ada banyak gambar (contoh 18)? Buat folder baru dalam LIVEFOLDER, masukkan 6 gambar kelas tu, dan load dari situ. Hasil tetap pergi ke tempat biasa: `LIVEFOLDER/DONE`, `PRINTS`, `LIVEFOLDER/WEBP`.
+- **Load Photo**: pilih gambar 1 (biasanya yang paling lama). App ambil gambar tu **dan 5 gambar seterusnya** ikut nama fail (1 kumpulan = 6 gambar). Gambar selepas tu dibiarkan untuk set seterusnya.
+  - Kalau tinggal kurang dari 6, app load apa yang ada (1–6) dan kotak kosong dibiarkan. 1 gambar = 1 output.
+  - Boleh juga load dari folder lain dalam LIVEFOLDER. Hasil tetap pergi ke `LIVEFOLDER/DONE`, `PRINTS`, `LIVEFOLDER/WEBP`.
   - Gambar besar = gambar 1 (main). Kotak kecil = gambar 2–6.
   - Preview guna snapshot ~2000px supaya laju. PROCESS guna fail asal 42MP.
 - **Master File (overlay)**: pilih `xxxx1.webp`. App cari sendiri `xxxx2…xxxx5.webp` dalam folder sama, dan senarai yang di-load ditulis bawah butang. Kawasan foto diambil automatik dari bahagian transparent master1.

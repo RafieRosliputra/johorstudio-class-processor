@@ -345,7 +345,7 @@ final class AppState: ObservableObject {
         panel.allowedContentTypes = [.jpeg]
         panel.directoryURL = liveFolderURL
         panel.prompt = "Load photos"
-        panel.message = "Choose the first photo — it and the photos after it (by file name) are loaded: 1–6, never 7 or more"
+        panel.message = "Choose photo 1 — it and the next 5 (by file name) are loaded; the rest stay for the next set"
         guard panel.runModal() == .OK, let url = panel.url else { return }
         loadSet(startingAt: url)
     }
@@ -356,14 +356,12 @@ final class AppState: ObservableObject {
             Log.error("\(first.lastPathComponent) not found")
             return
         }
-        // The chosen photo and every photo after it in that folder: 1–6 are loaded, 7 or more are refused
-        // (late? move the 6 photos of this class into a new folder inside LIVEFOLDER and load from there).
-        let set = Array(list[i...])
-        guard set.count <= Self.setSize else {
-            Log.warn("\(set.count) photos from \(first.lastPathComponent) in \(first.deletingLastPathComponent().lastPathComponent) — max \(Self.setSize). Not loaded.")
-            alert = AlertItem(title: "Too many photos",
-                              message: "\(set.count) photos from \(first.lastPathComponent). Max \(Self.setSize) — nothing loaded.\n\nPut the 6 photos of this class in a new folder inside LIVEFOLDER and load from there.")
-            return
+        // One group = the chosen photo + the next 5 (by file name). Fewer left? Load what is there (1–6).
+        // Photos after the group stay in the folder for the next set.
+        let set = Array(list[i...].prefix(Self.setSize))
+        let left = list.count - i - set.count
+        if left > 0 {
+            Log.info("\(left) more photo(s) after \(set.last!.lastPathComponent) stay in the folder for the next set")
         }
         if first.deletingLastPathComponent().standardizedFileURL != liveFolderURL.standardizedFileURL {
             Log.info("Loading from folder \(first.deletingLastPathComponent().lastPathComponent) — results still go to LIVEFOLDER/DONE, PRINTS and WEBP")
