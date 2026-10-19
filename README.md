@@ -29,7 +29,8 @@ master overlay at 4R, ready for the printer, with a copy on the customer's phone
 - [What it does](#what-it-does)
 - [Requirements](#requirements)
 - [Artwork templates](#artwork-templates)
-- [Install](#install)
+- [Download (no build needed)](#download-no-build-needed)
+- [Install (build from source)](#install-build-from-source)
 - [Event folder](#event-folder)
 - [First-time setup](#first-time-setup)
 - [Workflow](#workflow)
@@ -92,7 +93,25 @@ The `templates/` folder holds the Photoshop and overlay files used with the app.
 
 ---
 
-## Install
+## Download (no build needed)
+
+Get the ready-made app and the templates from **[Releases](https://github.com/RafieRosliputra/johorstudio-class-processor/releases/latest)**:
+
+| File | What |
+|---|---|
+| `JohorStudio-Class-Processor-v1.0.0-macOS-arm64.zip` | The app (Apple Silicon) |
+| `JohorStudio-Class-Processor-templates-v1.0.0.zip` | `master1–5.webp`, `textLayer.psb`, `masterSort.psd`, `layoutUI` |
+
+1. Unzip both and put `JohorStudio-Class-Processor.app` in the event folder.
+2. The app is not notarized by Apple. Clear the download flag once:
+   `xattr -dr com.apple.quarantine "JohorStudio-Class-Processor.app"` (or right-click › **Open** › **Open**).
+3. Open it and follow [First-time setup](#first-time-setup).
+
+You still need **Photoshop 2026** and `adb` (`brew install android-platform-tools`), but **not** the Xcode Command Line Tools.
+
+---
+
+## Install (build from source)
 
 ```bash
 # 1. Apple build tools (once)
