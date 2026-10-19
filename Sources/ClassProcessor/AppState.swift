@@ -105,6 +105,11 @@ final class AppState: ObservableObject {
         watchLiveFolder()
         adb.startup()
         Log.info("Startup finished")
+        // Testing: `open App.app --args --load /path/first.jpg`
+        let args = CommandLine.arguments
+        if let i = args.firstIndex(of: "--load"), i + 1 < args.count {
+            loadSet(startingAt: URL(fileURLWithPath: args[i + 1]))
+        }
     }
 
     // MARK: - Settings
