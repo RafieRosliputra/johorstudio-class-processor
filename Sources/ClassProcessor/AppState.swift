@@ -113,11 +113,6 @@ final class AppState: ObservableObject {
         if settings.psbPath != nil, settings.renderedName != "XXX" || textImage == nil {
             Task { await refreshText(makeCopies: false) }
         }
-        // Testing: `open App.app --args --load /path/first.jpg`
-        let args = CommandLine.arguments
-        if let i = args.firstIndex(of: "--load"), i + 1 < args.count {
-            loadSet(startingAt: URL(fileURLWithPath: args[i + 1]))
-        }
     }
 
     // MARK: - Settings
