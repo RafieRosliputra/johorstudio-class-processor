@@ -385,7 +385,7 @@ final class ADBManager: ObservableObject {
                 for name in pushed { self.sent.insert(name) }
                 if !pushed.isEmpty {
                     self.saveSent()
-                    Log.ok("ADB: pushed \(pushed.count) → \(phone) (\(pushed.joined(separator: ", ")))")
+                    Log.ok("ADB: pushed \(pushed.count) → \(phone)")
                     if tether { Log.info("ADB: opened on phone (tether)") }
                 }
                 self.busy = false
