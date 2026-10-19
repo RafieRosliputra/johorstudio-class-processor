@@ -28,6 +28,7 @@ master overlay at 4R, ready for the printer, with a copy on the customer's phone
 
 - [What it does](#what-it-does)
 - [Requirements](#requirements)
+- [Artwork templates](#artwork-templates)
 - [Install](#install)
 - [Event folder](#event-folder)
 - [First-time setup](#first-time-setup)
@@ -71,7 +72,22 @@ master overlay at 4R, ready for the printer, with a copy on the customer's phone
 | *Optional:* **scrcpy** | Shows the phone screen on the Mac (SCRCPY button). | `brew install scrcpy` |
 | **Android phone** with **USB debugging** on, and **Simple Gallery Pro** | Shows the photos to the customer. | Developer options › USB debugging |
 | **Printer** set as the macOS **default printer**, plus its **hotfolder** software | PRINT SAMPLES copies JPGs into the hotfolder. PURGE PRINTER clears the default printer's queue. | Printer driver / hotfolder app |
-| **Artwork**: `xxxx1.webp` … `xxxx5.webp` and `textLayer.psb` | Masters (1800×1200, photo window transparent) and the class name text layer. | Your design files |
+| **Artwork**: `xxxx1.webp` … `xxxx5.webp` and `textLayer.psb` | Masters (1800×1200, photo window transparent) and the class name text layer. | [`templates/`](templates) in this repo |
+
+---
+
+## Artwork templates
+
+The `templates/` folder holds the Photoshop and overlay files used with the app. Copy them into the event folder, or open them in Photoshop to make a new design.
+
+| File | What it is |
+|---|---|
+| `master1.webp` … `master5.webp` | The 5 overlays, 1800×1200. The photo window must be **transparent**. Choose `master1.webp` with **Master File (overlay)**. |
+| `textLayer.psb` | Class name text layer (2429×100). The app changes **only the text** of its first text layer, so the font, gradient and effects stay as designed. Choose it with **CLASS NAME**. |
+| `masterSort.psd` | Layout reference: where `textLayer` sits on the 1800×1200 master. This gives the default text area X/Y/W/H = 0/1024/1800/74. |
+| `layoutUI.psd` / `layoutUI.webp` | The original UI mock-up of the PRINT tab. |
+
+**Making a new design:** keep the canvas at 1800×1200, export 5 WebP files with the same name ending in `1` … `5`, and leave the photo window transparent. For the class name, edit the text style in `textLayer.psb` and keep a single text layer. If the text sits in a different place, adjust it with ⚙︎, the % box or the arrow buttons.
 
 ---
 
