@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleExecutable</key>
+	<string>ClassProcessor</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.johorstudio.classprocessor</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>JohorStudio-Class-Processor</string>
+	<key>CFBundleDisplayName</key>
+	<string>JohorStudio-Class-Processor</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSArchitecturePriority</key>
+	<array>
+		<string>arm64</string>
+	</array>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.photography</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>JohorStudio-Class-Processor asks Photoshop to update the class name text layer.</string>
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>JohorStudio-Class-Processor reads class photos and writes prints in the event folder.</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>JohorStudio-Class-Processor reads class photos and writes prints in the event folder.</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>JohorStudio-Class-Processor reads class photos and writes prints in the event folder.</string>
+	<key>NSNetworkVolumesUsageDescription</key>
+	<string>JohorStudio-Class-Processor can use folders on network drives.</string>
+	<key>NSRemovableVolumesUsageDescription</key>
+	<string>JohorStudio-Class-Processor can read images from external drives.</string>
+</dict>
+</plist>
