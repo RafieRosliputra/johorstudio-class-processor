@@ -460,7 +460,7 @@ struct RightPanel: View {
                 Button(app.hasCopies ? "RESET & RENAME" : "RESET PHOTO") { app.resetPhotos() }
                     .buttonStyle(PanelButtonStyle(highlighted: app.hasCopies))
                     .help(app.hasCopies
-                          ? "Renamed copies are in DONE: camera originals → Trash, unload, class name → XXX"
+                          ? "Rename the camera files <class> - 1…5 (red = xx), move them to DONE, unload, class name → XXX"
                           : "Unload the photos, class name → XXX")
                     .disabled(app.processing)
                 Button("PURGE PRINTER") { app.confirmPurge = true }

@@ -21,8 +21,8 @@ final class ADBManager: ObservableObject {
     @Published private(set) var adbPath: String?
 
     private var sent = Set<String>()
-    /// Renamed copies (LIVEFOLDER/DONE) to send now, even when auto-send is off.
-    private var priority: [URL] = []
+    /// Loaded photos to send now as "<class> - n.webp", even when auto-send is off.
+    private var priority: [(src: URL, name: String)] = []
     private var statusTimer: Timer?
     private var workTimer: Timer?
     private var galleryTimer: Timer?
@@ -291,17 +291,18 @@ final class ADBManager: ObservableObject {
         pendingCount = priority.count + (running ? pending().count : 0)
     }
 
-    /// Send these renamed copies (WebP made on the way) as soon as the phone is connected.
-    func sendNow(_ copies: [URL]) {
+    /// Send these photos as WebP named `name` (camera files are only read) as soon as the phone is connected.
+    func sendNow(_ items: [(src: URL, name: String)]) {
         guard adbPath != nil else { return }
-        let names = Set(copies.map(\.lastPathComponent))
-        priority.removeAll { names.contains($0.lastPathComponent) }
-        priority.append(contentsOf: copies)
+        let names = Set(items.map(\.name))
+        priority.removeAll { names.contains($0.name) }
+        priority.append(contentsOf: items)
         if connected {
-            Log.info("ADB: \(copies.count) renamed photo(s) queued for the phone")
+            Log.info("ADB: \(items.count) photo(s) queued for the phone as \(items.first?.name ?? "")…")
         } else {
-            Log.warn("ADB: phone not connected — \(copies.count) renamed photo(s) will be sent when it is")
+            Log.warn("ADB: phone not connected — \(items.count) photo(s) will be sent when it is")
         }
+        updatePending()
         kick()
     }
 
@@ -310,11 +311,12 @@ final class ADBManager: ObservableObject {
         updatePending()
         guard !busy, connected, let app, let adbPath, let serial else { return }
         // Renamed copies first, then (when auto-send is on) new camera files.
-        priority.removeAll { !FileManager.default.fileExists(atPath: $0.path) }
-        var batch = Array(priority.prefix(Self.batchSize))
+        priority.removeAll { !FileManager.default.fileExists(atPath: $0.src.path) }
+        var batch: [(src: URL, name: String)] = Array(priority.prefix(Self.batchSize))
         let fromPriority = batch.count
         if running, batch.count < Self.batchSize {
             batch += pending().prefix(Self.batchSize - batch.count)
+                .map { (src: $0, name: $0.deletingPathExtension().lastPathComponent) }
         }
         guard !batch.isEmpty else { return }
         priority.removeFirst(fromPriority)
@@ -327,14 +329,15 @@ final class ADBManager: ObservableObject {
         sendQueue.async {
             var ready: [(jpg: URL, webp: URL)] = []
             try? FileManager.default.ensureDirectory(webpFolder)
-            for (k, jpg) in batch.enumerated() {
+            for (k, item) in batch.enumerated() {
+                let jpg = item.src
                 // The camera may still be writing.
                 guard FileReady.isComplete(jpg) else {
                     Task { @MainActor in Log.info("ADB: \(jpg.lastPathComponent) still writing — next round") }
                     continue
                 }
-                let webp = webpFolder.appendingPathComponent(jpg.deletingPathExtension().lastPathComponent + ".webp")
-                // Renamed copies always get a fresh WebP (an older set may have used the same name).
+                let webp = webpFolder.appendingPathComponent(item.name + ".webp")
+                // Class-named WebP are always made fresh (an older set may have used the same name).
                 if k < fromPriority || !FileManager.default.fileExists(atPath: webp.path) {
                     do {
                         let t0 = Date()
@@ -355,7 +358,10 @@ final class ADBManager: ObservableObject {
                 Task { @MainActor in Log.info("ADB: pushing \(ready.count) WebP…") }
                 let r = Self.run(adbPath, ["-s", serial, "push"] + ready.map(\.webp.path) + [phone])
                 if r.status == 0 {
+                    // The camera file counts as sent (auto-send will not send it again under its own name).
                     pushedNames = ready.map(\.jpg.lastPathComponent)
+                    let shown = ready.map(\.webp.lastPathComponent).joined(separator: ", ")
+                    Task { @MainActor in Log.ok("ADB: on phone: \(shown)") }
                     if tether, let last = ready.last {
                         let remote = "file://\(phone)\(last.webp.lastPathComponent)"
                         _ = Self.run(adbPath, ["-s", serial, "shell", "am", "start", "-a", "android.intent.action.VIEW",

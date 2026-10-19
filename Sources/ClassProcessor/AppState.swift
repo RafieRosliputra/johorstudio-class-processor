@@ -51,11 +51,12 @@ final class AppState: ObservableObject {
     @Published private(set) var loading = false
     @Published private(set) var processing = false
     @Published private(set) var liveCount = 0
-    /// Renamed COPIES of the loaded camera files in LIVEFOLDER/DONE ("<class> - 1…5", red = "xx"),
-    /// made on refresh / PROCESS / PRINT SAMPLES. The originals stay untouched until RESET & RENAME.
-    @Published private(set) var copies: [Int: URL] = [:]
-    private var copyBase: [Int: String] = [:]
-    var hasCopies: Bool { !copies.isEmpty }
+    /// Class name used for this set (set by refresh / PROCESS). On RESET the camera files are renamed
+    /// "<class> - 1…5" (red = "xx") and moved to DONE. Until then LIVEFOLDER is not touched.
+    @Published private(set) var setClass: String?
+    /// Class name whose WebP "<class> - 1…6" were already sent to the phone for this set.
+    private var webpSentFor: String?
+    var hasCopies: Bool { setClass != nil }
 
     let adb = ADBManager()
 
@@ -328,7 +329,7 @@ final class AppState: ObservableObject {
             textImage = img
             settings.renderedName = name
             Log.ok("Photoshop: class name updated to \"\(name)\" (\(result), \(String(format: "%.1f", Date().timeIntervalSince(start)))s)")
-            if makeCopies { syncCopies() }
+            if makeCopies { sendPhoneWebP() }
             return true
         } catch {
             Log.error("Photoshop: \(error.localizedDescription)")
@@ -385,6 +386,7 @@ final class AppState: ObservableObject {
             }.value
             photos = loaded
             red = []
+            webpSentFor = nil
             loading = false
             for p in loaded where p.preview == nil { Log.error("Cannot read \(p.url.lastPathComponent)") }
             Log.ok("6 photos loaded (main: \(loaded[0].url.lastPathComponent))")
@@ -402,7 +404,7 @@ final class AppState: ObservableObject {
         }
     }
 
-    /// RESET PHOTO: rename (if copies were made), unload, class name → XXX in the box AND the text layer.
+    /// RESET PHOTO: rename (if a class name was applied), unload, class name → XXX in the box AND the text layer.
     func resetPhotos() {
         renameProcessed()
         photos = []
@@ -429,84 +431,35 @@ final class AppState: ObservableObject {
         return out
     }
 
-    /// Copy the 6 loaded camera files to LIVEFOLDER/DONE as "<class> - 1…5 / xx" (originals untouched),
-    /// then send them to the phone (WebP). Copies already matching their name are kept.
-    func syncCopies() {
+    /// WebP "<class> - 1…6" (by position) of the 6 loaded photos → phone. Camera files are not touched.
+    func sendPhoneWebP() {
         guard photos.count == Self.setSize,
               let rendered = settings.renderedName, rendered != "XXX",
               !rendered.trimmingCharacters(in: .whitespaces).isEmpty else { return }
         let cls = Self.safeFileName(rendered)
-        let suffix = plannedSuffixes()
-        let fm = FileManager.default
-        let done = WorkPaths.done(in: liveFolderURL)
-        try? fm.ensureDirectory(done)
-        var fresh: [URL] = []
-        var todo: [Int] = []
-        // 1. Trash every copy whose name changed first, so the new names are free.
-        for i in 0..<photos.count {
-            let base = "\(cls) - \(suffix[i] ?? "xx")"
-            if copyBase[i] == base, let c = copies[i], fm.fileExists(atPath: c.path) { continue }
-            todo.append(i)
-            if let old = copies[i], fm.fileExists(atPath: old.path) {
-                do {
-                    try fm.trashItem(at: old, resultingItemURL: nil)
-                    Log.info("TRASH old copy DONE/\(old.lastPathComponent)")
-                } catch {
-                    Log.warn("Cannot trash \(old.lastPathComponent): \(error.localizedDescription)")
-                }
-            }
-            copies[i] = nil
-            copyBase[i] = nil
-        }
-        // 2. Copy with the new names.
-        for i in todo {
-            let photo = photos[i]
-            let base = "\(cls) - \(suffix[i] ?? "xx")"
-            let ext = photo.url.pathExtension.lowercased().isEmpty ? "jpg" : photo.url.pathExtension.lowercased()
-            let dest = fm.freeName(base, ext: ext, in: done)
-            do {
-                try fm.copyItem(at: photo.url, to: dest)
-                copies[i] = dest
-                copyBase[i] = base
-                fresh.append(dest)
-                Log.ok("COPY \(photo.url.lastPathComponent) → DONE/\(dest.lastPathComponent)")
-            } catch {
-                copies[i] = nil
-                copyBase[i] = nil
-                Log.error("COPY \(photo.url.lastPathComponent): \(error.localizedDescription)")
-            }
-        }
-        if !fresh.isEmpty { adb.sendNow(fresh) }
+        setClass = cls
+        guard webpSentFor != cls else { return }
+        webpSentFor = cls
+        let items = photos.enumerated().map { (i, p) in (src: p.url, name: "\(cls) - \(i + 1)") }
+        adb.sendNow(items)
     }
 
-    /// RESET & RENAME: the renamed copies are already in DONE, so the camera originals go to the Trash.
-    /// (An original without a matching copy is renamed and moved to DONE instead.) Contents never change.
+    /// RESET: camera files → "<class> - 1…5" (photos not red, in order) / "<class> - xx" (red),
+    /// moved to LIVEFOLDER/DONE. File contents never change.
     func renameProcessed() {
-        guard hasCopies else { return }
+        guard let cls = setClass else { return }
         let fm = FileManager.default
         let done = WorkPaths.done(in: liveFolderURL)
         try? fm.ensureDirectory(done)
         let suffix = plannedSuffixes()
-        let cls = copyBase.values.first.map { String($0[..<($0.range(of: " - ", options: .backwards)?.lowerBound ?? $0.endIndex)]) }
-            ?? Self.safeFileName(settings.renderedName ?? "CLASS")
         for (i, photo) in photos.enumerated() {
             let src = photo.url
             guard fm.fileExists(atPath: src.path) else {
                 Log.warn("RENAME \(src.lastPathComponent): file not found")
                 continue
             }
-            if let copy = copies[i], fm.fileExists(atPath: copy.path),
-               FileReady.fileSize(copy) == FileReady.fileSize(src) {
-                do {
-                    try fm.trashItem(at: src, resultingItemURL: nil)
-                    Log.ok("TRASH \(src.lastPathComponent) (already in DONE as \(copy.lastPathComponent))")
-                } catch {
-                    Log.error("TRASH \(src.lastPathComponent): \(error.localizedDescription)")
-                }
-                continue
-            }
             let ext = src.pathExtension.lowercased().isEmpty ? "jpg" : src.pathExtension.lowercased()
-            let dest = fm.freeName(copyBase[i] ?? "\(cls) - \(suffix[i] ?? "xx")", ext: ext, in: done)
+            let dest = fm.freeName("\(cls) - \(suffix[i] ?? "xx")", ext: ext, in: done)
             do {
                 try fm.moveItem(at: src, to: dest)
                 Log.ok("RENAME \(src.lastPathComponent) → DONE/\(dest.lastPathComponent)")
@@ -514,8 +467,8 @@ final class AppState: ObservableObject {
                 Log.error("RENAME \(src.lastPathComponent): \(error.localizedDescription)")
             }
         }
-        copies = [:]
-        copyBase = [:]
+        setClass = nil
+        webpSentFor = nil
         countLive()
     }
 
@@ -666,8 +619,9 @@ final class AppState: ObservableObject {
             }
         }.value
 
-        syncCopies()
-        Log.info("Camera originals stay in LIVEFOLDER until RESET & RENAME")
+        sendPhoneWebP()
+        setClass = cls
+        Log.info("Camera files stay in LIVEFOLDER until RESET & RENAME")
         Log.ok("\(printSamples ? "PRINT SAMPLES" : "PROCESS") finished: \(cls)")
     }
 
