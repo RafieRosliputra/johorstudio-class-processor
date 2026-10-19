@@ -63,6 +63,10 @@ final class ADBManager: ObservableObject {
             return
         }
         Log.ok("adb: \(adbPath)")
+        if app?.settings.autoSend == true {
+            Log.info("ADB auto-send was on — resuming (only what is not on the phone yet is sent)")
+            start()
+        }
         restartServer()
         statusTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refreshDevices(quiet: true) }
@@ -232,6 +236,7 @@ final class ADBManager: ObservableObject {
         guard adbPath != nil else { Log.error("adb not installed"); return }
         running = true
         autoFlag.set(true)
+        if !app.settings.autoSend { app.settings.autoSend = true }
         if !priority.isEmpty {
             Log.info("ADB: auto-send on — \(priority.count) PRINT-tab photo(s) dropped from the queue")
             priority.removeAll()
@@ -244,6 +249,7 @@ final class ADBManager: ObservableObject {
     func stop() {
         running = false
         autoFlag.set(false)
+        if app?.settings.autoSend == true { app?.settings.autoSend = false }
         galleryTimer?.invalidate()
         galleryTimer = nil
         pendingCount = priority.count

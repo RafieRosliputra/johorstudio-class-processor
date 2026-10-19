@@ -37,6 +37,7 @@ struct AppSettings: Codable, Equatable {
     var tether = false
     var phoneFolder = "/sdcard/Downloads/"
     var gallerySeconds = 120
+    var autoSend = false             // ADB auto-send was on: start it again at launch
 
     init() {}
 
@@ -61,6 +62,7 @@ struct AppSettings: Codable, Equatable {
         tether = try c.decodeIfPresent(Bool.self, forKey: .tether) ?? d.tether
         phoneFolder = try c.decodeIfPresent(String.self, forKey: .phoneFolder) ?? d.phoneFolder
         gallerySeconds = try c.decodeIfPresent(Int.self, forKey: .gallerySeconds) ?? d.gallerySeconds
+        autoSend = try c.decodeIfPresent(Bool.self, forKey: .autoSend) ?? d.autoSend
     }
 
     static func load(from url: URL) -> AppSettings {

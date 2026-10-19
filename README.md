@@ -76,7 +76,7 @@ Bahagian ADB dari app *JohorStudio LiveFolder* lama. adb: `/opt/homebrew/bin/adb
   - Kalau status tulis *"press Allow on the phone"*: buka phone dan tekan **Allow USB debugging**.
   - Arahan ADB (swipe, restart gallery…) tak perlu tunggu batch WebP yang sedang dihantar.
 - **START SENDING** (auto-send): setiap 5 saat app semak senarai fail dalam folder phone. Setiap JPG kamera dalam `LIVEFOLDER` (folder atas sahaja) yang `<nama>.webp`-nya belum ada dalam phone → WebP saiz penuh quality 50 → terus di-push satu-satu (ada 1 hantar 1, ada 10 hantar 10). Nama kamera kekal.
-  - Rekod satu-satunya ialah isi folder phone, jadi bila app dibuka semula / tertutup tiba-tiba, app sambung dari apa yang belum ada dalam phone.
+  - Rekod satu-satunya ialah isi folder phone. Kalau auto-send ON masa app ditutup (atau app tertutup tiba-tiba), ia ON semula bila app dibuka dan sambung hantar apa yang belum ada dalam phone.
   - WebP tak disimpan di Mac (fail sementara dipadam lepas push). Fail dalam LIVEFOLDER tak diusik. Fail yang dah dinamakan semula (`… - 1.jpg`, `… - xx.jpg`) tak di-push.
   - Bila auto-send ON, **PRINT tab tak push apa-apa** ke phone.
   - Simple Gallery Pro di-restart setiap 2 minit (boleh ubah). **Tether mode**: lepas setiap fail dihantar, fail tu terus dibuka dalam Simple Gallery Pro (tiada auto restart).
