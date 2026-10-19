@@ -56,12 +56,13 @@ Desktop/2026 SMK Kulai Besar Class Photo/     ← root
   - Kalau 6 gambar semua tak merah, PROCESS tak jalan (master cuma 5).
   - Kalau tinggal 3, proses 3 sahaja.
 - **PROCESS FILES**: export JPG 1800×1200, Q95, 300 DPI, sRGB ke `PRINTS/`. Nama ikut isi text layer dan nombor master, tanpa tarikh: `TINGKATAN 1C - 1.jpg` … `- 5.jpg`. Gambar kekal dalam app.
-- **Refresh nama** (bila 6 gambar loaded): gambar yang loaded terus dijadikan WebP bernama `TINGKATAN 1C - 1.webp` … `- 6.webp` (ikut kedudukan) dan **dihantar ke phone**. Fail kamera dalam LIVEFOLDER tak diusik. (PROCESS pun hantar kalau set tu belum dihantar dengan nama tu.)
+- **Refresh nama**: tanda merah dulu, kemudian refresh. Gambar yang **tak merah** terus dijadikan WebP dengan nama akhir (`TINGKATAN 1C - 1.webp` … `- 5.webp`) dan **dihantar ke phone**. Gambar merah tak dihantar. Fail kamera dalam LIVEFOLDER tak diusik.
   - Kalau fail dah ada dalam PRINTS, ia tak dieksport semula dan ditulis dalam log.
   - Kalau teks belum di-refresh, app refresh dulu secara automatik.
 - **PRINT SAMPLES**: sama macam PROCESS, ditambah salin fail PRINTS ke HOTFOLDER. Tiada overwrite: kalau fail dah ada, ia dilangkau.
 - **📁**: buka folder PRINTS.
 - **RESET PHOTO**: kosongkan preview, tulis "no photo loaded", kotak nama kelas dan text layer jadi `XXX`.
+  - Reset sebelum refresh nama = kosongkan slot sahaja, tiada fail diubah.
   - Lepas refresh nama / PROCESS, butang jadi hijau (**RESET & RENAME**): fail kamera dinamakan semula `TINGKATAN 1C - 1…5.jpg` (ikut master, yang tak merah) dan yang merah `TINGKATAN 1C - xx.jpg`, kemudian dipindah ke `LIVEFOLDER/DONE/`. Isi fail tak diubah.
   - Load Photo set baru tanpa reset pun akan buat langkah ni untuk set sebelumnya dulu.
 - **PURGE PRINTER** (merah): popup amaran dulu, lepas tu buang semua job dalam queue printer default (`cancel -a -x`). **Right-click** = buka queue printer (Print Center).

@@ -434,16 +434,21 @@ final class AppState: ObservableObject {
         return out
     }
 
-    /// WebP "<class> - 1…6" (by position) of the 6 loaded photos → phone. Camera files are not touched.
+    /// WebP of the loaded photos that are NOT red, named like their final files ("<class> - 1…5") → phone.
+    /// Camera files are not touched.
     func sendPhoneWebP() {
         guard !photos.isEmpty,
               let rendered = settings.renderedName, rendered != "XXX",
               !rendered.trimmingCharacters(in: .whitespaces).isEmpty else { return }
         let cls = Self.safeFileName(rendered)
         setClass = cls
-        guard webpSentFor != cls else { return }
-        webpSentFor = cls
-        let items = photos.enumerated().map { (i, p) in (src: p.url, name: "\(cls) - \(i + 1)") }
+        let suffix = plannedSuffixes()
+        let key = cls + "|" + red.sorted().map(String.init).joined(separator: ",")
+        guard webpSentFor != key else { return }
+        webpSentFor = key
+        let items = photos.indices.filter { !red.contains($0) && suffix[$0] != "xx" }
+            .map { (src: photos[$0].url, name: "\(cls) - \(suffix[$0] ?? "")") }
+        if !red.isEmpty { Log.info("Red photo(s) not sent: \(red.sorted().map { "#\($0 + 1)" }.joined(separator: ", "))") }
         adb.sendNow(items)
     }
 
