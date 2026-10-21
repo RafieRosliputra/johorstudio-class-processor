@@ -12,6 +12,8 @@ struct ClassProcessorApp: App {
                 .environmentObject(app)
                 .preferredColorScheme(.dark)
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
+                    // Release the camera so gphoto2 does not keep running after the app.
+                    app.tether.shutdown()
                     app.saveNow()
                 }
         }

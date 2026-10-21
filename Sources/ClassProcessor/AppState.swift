@@ -7,6 +7,7 @@ import UniformTypeIdentifiers
 enum MainTab: String, CaseIterable {
     case print = "PRINT"
     case adb = "ADB"
+    case camera = "CAMERA"
 }
 
 struct AlertItem: Identifiable {
@@ -59,6 +60,8 @@ final class AppState: ObservableObject {
     var hasCopies: Bool { setClass != nil }
 
     let adb = ADBManager()
+    /// Sony A7R II over USB (gphoto2): photos land in LIVEFOLDER by themselves.
+    let tether = CameraTether(appName: "JohorStudio-Class-Processor")
 
     private var saveTimer: Timer?
     private var countTimer: Timer?
@@ -72,6 +75,10 @@ final class AppState: ObservableObject {
         self.paths = paths
         settings = AppSettings.load(from: paths.settingsFile)
         adb.app = self
+        tether.folder = { [unowned self] in self.liveFolderURL }
+        tether.remember = { [unowned self] on in
+            if self.settings.cameraTether != on { self.settings.cameraTether = on }
+        }
         activity = ProcessInfo.processInfo.beginActivity(
             options: [.userInitiated, .idleSystemSleepDisabled],
             reason: "Class photo session running"
@@ -107,6 +114,7 @@ final class AppState: ObservableObject {
         if settings.psbPath == nil { Log.warn("No textLayer.psb selected — press CLASS NAME") }
         watchLiveFolder()
         adb.startup()
+        tether.startup(resume: settings.cameraTether)
         Log.info("Startup finished")
         // Start every session with XXX in the text layer.
         settings.className = "XXX"
@@ -159,6 +167,7 @@ final class AppState: ObservableObject {
         try? FileManager.default.ensureDirectory(WorkPaths.done(in: url))
         watchLiveFolder()
         if adb.running { adb.stop(); adb.start() }
+        tether.folderChanged()
     }
 
     func chooseHotfolder() {

@@ -13,6 +13,7 @@ master overlay at 4R, ready for the printer, with a copy on the customer's phone
 ![SwiftUI](https://img.shields.io/badge/UI-SwiftUI-0A84FF)
 ![Photoshop](https://img.shields.io/badge/Adobe%20Photoshop-2026-31A8FF?logo=adobephotoshop&logoColor=white)
 ![ADB](https://img.shields.io/badge/Android-ADB-3DDC84?logo=android&logoColor=white)
+![gphoto2](https://img.shields.io/badge/gphoto2-Sony%20A7R%20II-555555)
 
 <br>
 
@@ -38,6 +39,7 @@ master overlay at 4R, ready for the printer, with a copy on the customer's phone
 - [Not enough photos, or too many](#not-enough-photos-or-too-many)
 - [PRINT tab: buttons](#print-tab-buttons)
 - [ADB tab: buttons](#adb-tab-buttons)
+- [CAMERA tab: Sony A7R II over USB](#camera-tab-sony-a7r-ii-over-usb)
 - [Output files](#output-files)
 - [Troubleshooting](#troubleshooting)
 - [Project layout](#project-layout)
@@ -56,6 +58,7 @@ master overlay at 4R, ready for the printer, with a copy on the customer's phone
 | **Print** | JPG 1800×1200 (4R), Q95, 300 DPI, sRGB, saved in `PRINTS/`, and copied to the printer hotfolder on demand. Existing files are never overwritten. |
 | **Phone** | Full-size WebP pushed to an Android phone over ADB, either with the class name (PRINT tab) or with the camera name (auto-send). |
 | **Safe with originals** | Camera files are only read. They are renamed `CLASS - 1…5` / `CLASS - xx` and moved to `LIVEFOLDER/DONE` only when you press **RESET & RENAME**. |
+| **Camera tether** | A Sony A7R II on a USB cable: every shot downloads straight into `LIVEFOLDER` with gphoto2. No other tether software. |
 | **Logged** | Every export, copy, rename and push appears in the log box and in `log/YYYY-MM-DD.log`. |
 
 ---
@@ -72,6 +75,7 @@ master overlay at 4R, ready for the printer, with a copy on the customer's phone
 | **Homebrew** | Installs `adb`, `scrcpy` and the GitHub CLI. | [brew.sh](https://brew.sh) |
 | **GitHub account with access** + **GitHub CLI** (`gh`) | The repository is private. `gh auth login` lets `git` clone and pull. | `brew install gh` |
 | *Optional:* **scrcpy** | Shows the phone screen on the Mac (SCRCPY button). | `brew install scrcpy` |
+| *Optional:* **gphoto2** | Camera tether in the CAMERA tab (Sony A7R II over USB). Expected at `/opt/homebrew/bin/gphoto2`. | `brew install gphoto2` |
 | **Android phone** with **USB debugging** on, and **Simple Gallery Pro** | Shows the photos to the customer. | Developer options › USB debugging |
 | **Printer** set as the macOS **default printer**, plus its **hotfolder** software | PRINT SAMPLES copies JPGs into the hotfolder. PURGE PRINTER clears the default printer's queue. | Printer driver / hotfolder app |
 | **Artwork**: `xxxx1.webp` … `xxxx5.webp` and `textLayer.psb` | Masters (1800×1200, photo window transparent) and the class name text layer. | [`templates/`](templates) in this repo |
@@ -107,7 +111,7 @@ Get the ready-made app and the templates from **[Releases](https://github.com/Ra
    `xattr -dr com.apple.quarantine "JohorStudio-Class-Processor.app"` (or right-click › **Open** › **Open**).
 3. Open it and follow [First-time setup](#first-time-setup).
 
-You still need **Photoshop 2026** and `adb` (`brew install android-platform-tools`), but **not** the Xcode Command Line Tools.
+You still need **Photoshop 2026** and `adb` (`brew install android-platform-tools`), plus `gphoto2` for the camera tether (`brew install gphoto2`), but **not** the Xcode Command Line Tools.
 
 ---
 
@@ -117,8 +121,8 @@ You still need **Photoshop 2026** and `adb` (`brew install android-platform-tool
 # 1. Apple build tools (once)
 xcode-select --install
 
-# 2. adb (and optionally scrcpy)
-brew install android-platform-tools scrcpy
+# 2. adb (and optionally scrcpy, and gphoto2 for the camera tether)
+brew install android-platform-tools scrcpy gphoto2
 
 # 3. Sign in to GitHub (the repository is private) and get the code
 brew install gh
@@ -157,6 +161,8 @@ Put the app inside the event folder. That folder is the **root**, and everything
 ├── JohorStudio-Class-Processor.app
 ├── settings.json        all settings: folders, masters, PSB, photo size/position, ADB…
 ├── LIVEFOLDER/          camera JPGs arrive here (the Directory button can change it)
+│   ├── .gphoto2-incoming/  hidden: photos still downloading from the camera (CAMERA tab)
+│   ├── RAW/             RAW files when the camera shoots RAW+JPEG (CAMERA tab)
 │   ├── DONE/            camera originals after RESET & RENAME: "TINGKATAN 1C - 1.jpg" … "- xx.jpg"
 │   └── WEBP/            class-named WebP pushed from the PRINT tab (auto-send off)
 ├── PRINTS/              finished 1800×1200 JPG: "TINGKATAN 1C - 1.jpg" …
@@ -175,6 +181,7 @@ Put the app inside the event folder. That folder is the **root**, and everything
 5. **CLASS NAME**: choose `textLayer.psb`.
 6. Press **⟳ (refresh)** once. macOS asks *"JohorStudio-Class-Processor wants to control Adobe Photoshop 2026"*. Click **Allow**.
 7. Plug in the phone and allow USB debugging on it. The top-right corner shows **adb … connected** in green.
+8. *Optional, camera on USB:* set the A7R II to **PC Remote**, plug it in, open the **CAMERA** tab and press **START TETHER**. The top-right corner shows **camera … connected** in green. See [CAMERA tab](#camera-tab-sony-a7r-ii-over-usb).
 
 All of this is saved in `settings.json`, so you only do it once per event.
 
@@ -288,6 +295,42 @@ Every 5 seconds, while auto-send is on:
 
 ---
 
+## CAMERA tab: Sony A7R II over USB
+
+Shots go straight from the camera into `LIVEFOLDER`, so the counter, **Load Photo** and ADB auto-send work exactly as with any other tether software. It uses [gphoto2](http://www.gphoto.org/) from Homebrew.
+
+**Once on the Mac:** install [Homebrew](https://brew.sh), then `brew install gphoto2`.
+
+**On the A7R II:**
+
+| Setting | Value |
+|---|---|
+| MENU › Setup › **USB Connection** | **PC Remote** (in any other mode the camera is not found) |
+| **Airplane Mode** | On (Wi-Fi off) |
+| **Power Save Start Time** | 30 min, so the camera stays awake |
+| **File Format** | JPEG. With RAW+JPEG, the RAW files go to `LIVEFOLDER/RAW` |
+| **Date/Time** | Correct: file names come from the camera clock |
+
+Use a short, good USB cable straight into the Mac (no hub), and close **Imaging Edge**, **Photos** and **Image Capture**.
+
+| Control | Action |
+|---|---|
+| **START / STOP TETHER** | Tether on or off. The state is remembered, so if the app closes while it is on, it starts again at launch. |
+| **Status** | *Looking for the camera…*, *Connecting…*, or **Sony Alpha-A7r II (Control) connected** in green. Any problem is shown here and in the log. |
+| **SHOOT** | Fires the camera from the Mac. |
+| **OPEN LIVEFOLDER** | Opens `LIVEFOLDER` in Finder. |
+
+### Camera tether in detail
+
+1. One `gphoto2 --capture-tethered --keep` process holds the camera. Each shot taken on the camera (or with SHOOT) is downloaded.
+2. The download goes into the hidden folder `LIVEFOLDER/.gphoto2-incoming`. Only when gphoto2 reports the file finished is it moved into `LIVEFOLDER`, so the app never reads a half-written JPG.
+3. Names are `20261021-101530-000.jpg` (camera clock + counter). They sort in shooting order, so *photo 1 and the next 5* still works. Sony names every shot `capt0000.jpg`, so its own name cannot be kept. Do not mix tethered photos and photos copied from a card in the same `LIVEFOLDER`.
+4. Nothing is deleted from the camera's memory card.
+5. macOS's `ptpcamerad` grabs every camera that is plugged in. Until gphoto2 has the camera, the app stops `ptpcamerad` every second, so Photos and Image Capture cannot import from cameras or iPhones then.
+6. Unplugged, or camera off: gphoto2 is retried every 3 seconds and reconnects by itself.
+
+---
+
 ## Output files
 
 | Where | Name | When |
@@ -311,6 +354,10 @@ Every 5 seconds, while auto-send is on:
 | Masters show **MISSING** | All five files must sit together and be named `<same name>1.webp` … `5.webp`. |
 | App opens from a strange path / cannot write files | Move the app into the event folder and run `xattr -dr com.apple.quarantine "JohorStudio-Class-Processor.app"` (App Translocation). |
 | Build fails | Copy everything from Terminal, especially lines with `error:`, and send it in. Check `swift --version` works. |
+| CAMERA: *gphoto2 not installed* | `brew install gphoto2` (expected at `/opt/homebrew/bin/gphoto2`), then reopen the app. |
+| CAMERA: *No camera found* | USB cable in, camera ON, **USB Connection › PC Remote**. Test in Terminal: `killall ptpcamerad; gphoto2 --auto-detect` must list `Sony Alpha-A7r II (Control)`. |
+| CAMERA: *macOS is holding the camera* | Quit Photos, Image Capture and Imaging Edge, then unplug and replug the cable. Still stuck: restart the Mac. If only `sudo gphoto2 --auto-detect --summary` works in Terminal, send the log in. |
+| Camera photos do not appear | The CAMERA status must be green. Look for `Camera →` lines in the log. |
 
 ---
 
@@ -327,9 +374,10 @@ Sources/ClassProcessor/
 ├── Imaging.swift                   preview snapshots, placement, 1800×1200 render
 ├── PhotoshopText.swift             JSX that updates textLayer.psb in Photoshop 2026
 ├── ADBManager.swift                adb, auto-send, PRINT-tab push, gallery control
+├── CameraTether.swift              gphoto2 USB tether (Sony A7R II) into LIVEFOLDER
 ├── ImageExport.swift               JPEG (300 DPI) and WebP (libwebp)
 ├── Settings.swift · Paths.swift · LogStore.swift · FileWatching.swift · PrinterQueue.swift · QuickLook.swift
-└── Views/                          MainView, PrintTab, ADBTab, Components
+└── Views/                          MainView, PrintTab, ADBTab, CameraTab, Components
 ```
 
 <div align="center">

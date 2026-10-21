@@ -13,11 +13,12 @@ struct MainView: View {
     var body: some View {
         GeometryReader { geo in
             VStack(spacing: 0) {
-                HeaderBar(adb: app.adb)
+                HeaderBar(adb: app.adb, tether: app.tether)
                 Group {
                     switch app.tab {
                     case .print: PrintTab()
                     case .adb: ADBTab(adb: app.adb)
+                    case .camera: CameraTab(tether: app.tether)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -42,6 +43,7 @@ struct MainView: View {
 struct HeaderBar: View {
     @EnvironmentObject var app: AppState
     @ObservedObject var adb: ADBManager
+    @ObservedObject var tether: CameraTether
     @Environment(\.uiScale) private var s
 
     var body: some View {
@@ -55,6 +57,7 @@ struct HeaderBar: View {
                 HStack(spacing: 10 * s) {
                     TabButton(.print)
                     TabButton(.adb)
+                    TabButton(.camera)
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
@@ -62,6 +65,11 @@ struct HeaderBar: View {
                         .foregroundStyle(adb.connected ? Theme.statusGreen : .red)
                     Text("\(app.liveCount) file\(app.liveCount == 1 ? "" : "s") in LIVEFOLDER")
                         .foregroundStyle(app.liveCount > 0 ? Theme.statusGreen : .secondary)
+                    if tether.isOn {
+                        Text(tether.connected ? "camera \(tether.model ?? "") connected" : "camera waiting")
+                            .foregroundStyle(tether.connected ? Theme.statusGreen : .orange)
+                            .help(tether.statusText)
+                    }
                 }
                 .font(.system(size: 15 * s, weight: .medium))
                 .help(app.liveFolderURL.path)

@@ -39,6 +39,9 @@ struct AppSettings: Codable, Equatable {
     var gallerySeconds = 120
     var autoSend = false             // ADB auto-send was on: start it again at launch
 
+    // Camera tether (gphoto2)
+    var cameraTether = false         // CAMERA tether was on: start it again at launch
+
     init() {}
 
     // Missing keys fall back to defaults so older settings files keep working.
@@ -63,6 +66,7 @@ struct AppSettings: Codable, Equatable {
         phoneFolder = try c.decodeIfPresent(String.self, forKey: .phoneFolder) ?? d.phoneFolder
         gallerySeconds = try c.decodeIfPresent(Int.self, forKey: .gallerySeconds) ?? d.gallerySeconds
         autoSend = try c.decodeIfPresent(Bool.self, forKey: .autoSend) ?? d.autoSend
+        cameraTether = try c.decodeIfPresent(Bool.self, forKey: .cameraTether) ?? d.cameraTether
     }
 
     static func load(from url: URL) -> AppSettings {
