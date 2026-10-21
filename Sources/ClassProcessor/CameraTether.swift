@@ -341,13 +341,17 @@ final class CameraTether: ObservableObject {
     private func exited(gen: Int, code: Int32) {
         guard gen == generation else { return }
         let wasConnected = status == .connected
+        let hadProcess = process != nil
         process = nil
         if let staging { sweep(staging, removeTemp: true) }
         let tail = stderrTail
         stderrTail = []
         guard isOn else {
-            status = .off
-            Log.info("Camera tether OFF")
+            // stop() already reported OFF if it found gphoto2 had quit.
+            if hadProcess {
+                status = .off
+                Log.info("Camera tether OFF")
+            }
             return
         }
         if restarting {
@@ -388,7 +392,12 @@ final class CameraTether: ObservableObject {
     private func startKiller() {
         guard killTimer == nil else { return }
         killTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
-            gphotoQueue.async { GPhoto2.killPTPCamera() }
+            // Never queue up kills if one is still running.
+            guard killGate.enter() else { return }
+            killQueue.async {
+                GPhoto2.killPTPCamera()
+                killGate.leave()
+            }
         }
     }
 
@@ -482,6 +491,29 @@ final class CameraTether: ObservableObject {
 
 /// gphoto2 helpers that block; run them on `gphotoQueue`, never on the main thread.
 private let gphotoQueue = DispatchQueue(label: "camera.gphoto2", qos: .userInitiated)
+/// The once-a-second ptpcamerad kill runs on its own queue, so it keeps going during auto-detect.
+private let killQueue = DispatchQueue(label: "camera.ptpcamerad", qos: .utility)
+private let killGate = Gate()
+
+/// Lets one job through at a time; others are skipped, not queued.
+private final class Gate: @unchecked Sendable {
+    private var busy = false
+    private let lock = NSLock()
+
+    func enter() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        if busy { return false }
+        busy = true
+        return true
+    }
+
+    func leave() {
+        lock.lock()
+        busy = false
+        lock.unlock()
+    }
+}
 
 enum GPhoto2 {
     struct Camera: Sendable {
