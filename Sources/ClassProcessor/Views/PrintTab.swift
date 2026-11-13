@@ -44,14 +44,18 @@ struct BigPreview: View {
                 Color.white
                 if let main = app.photos.first, let cg = main.preview {
                     let area = app.photoArea
-                    let pr = Imaging.photoRect(photo: main.size, area: area, zoom: app.settings.zoom, offset: app.offset)
+                    let pr = Imaging.photoRect(photo: main.size, area: area, zoom: app.settings.zoom, offset: app.offset, rotation: app.settings.rotation)
                     // Drawn inside a Canvas exactly the size of the photo area: a zoomed photo must never
                     // become a view bigger than the preview, or it covers the tabs / buttons
                     // (the "ADB tab / PROCESS can't be pressed" bug).
                     Canvas { ctx, _ in
                         let r = CGRect(x: (pr.minX - area.minX) * k, y: (pr.minY - area.minY) * k,
                                        width: pr.width * k, height: pr.height * k)
-                        ctx.draw(Image(decorative: cg, scale: 1).resizable().interpolation(.high), in: r)
+                        var c = ctx
+                        c.translateBy(x: r.midX, y: r.midY)
+                        c.rotate(by: .degrees(app.settings.rotation))   // + = clockwise
+                        c.translateBy(x: -r.midX, y: -r.midY)
+                        c.draw(Image(decorative: cg, scale: 1).resizable().interpolation(.high), in: r)
                     }
                     .frame(width: area.width * k, height: area.height * k)
                     .position(x: area.midX * k, y: area.midY * k)
@@ -430,6 +434,24 @@ struct RightPanel: View {
                     .foregroundStyle(.secondary)
                 Button("Fill") { app.resetPlacement() }
                     .help("Back to 100% (fill), centred")
+            }
+
+            // Rotate photo (0.1° steps, applies to every photo)
+            HStack(spacing: 8 * s) {
+                Text("rotate °").font(.system(size: 16 * s))
+                Button("−0.1") { app.rotate(by: -0.1) }
+                    .help("Rotate counter-clockwise 0.1°")
+                TextField("", value: Binding(get: { app.settings.rotation }, set: { app.setRotation($0) }),
+                          format: .number.precision(.fractionLength(0...1)))
+                    .textFieldStyle(.roundedBorder)
+                    .multilineTextAlignment(.center)
+                    .frame(width: 60 * s)
+                    .help("Degrees, + = clockwise (−10 … +10)")
+                Button("+0.1") { app.rotate(by: 0.1) }
+                    .help("Rotate clockwise 0.1°")
+                Spacer()
+                Button("0°") { app.setRotation(0) }
+                    .help("No rotation")
             }
 
             HStack(spacing: 10 * s) {

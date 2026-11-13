@@ -78,19 +78,39 @@ enum Imaging {
 
     /// Where the photo is drawn on the canvas (top-left coordinates).
     /// `zoom` 1 = fill the area; `offset` = photo centre minus area centre, clamped so the area stays covered.
-    static func photoRect(photo: CGSize, area: CGRect, zoom: Double, offset: CGPoint) -> CGRect {
-        let base = max(area.width / photo.width, area.height / photo.height)
+    /// `rotation` = degrees (+ = clockwise), around the photo centre; the photo is enlarged just enough
+    /// that the rotated photo still covers the whole area (no empty corners).
+    static func photoRect(photo: CGSize, area: CGRect, zoom: Double, offset: CGPoint, rotation: Double = 0) -> CGRect {
+        let (reqW, reqH) = coverSize(area: area, rotation: rotation)
+        let base = max(reqW / photo.width, reqH / photo.height)
         let scale = base * CGFloat(max(1, zoom))
         let size = CGSize(width: photo.width * scale, height: photo.height * scale)
-        let o = clamp(offset: offset, drawn: size, area: area)
+        let o = clamp(offset: offset, drawn: size, area: area, rotation: rotation)
         return CGRect(x: area.midX + o.x - size.width / 2, y: area.midY + o.y - size.height / 2,
                       width: size.width, height: size.height)
     }
 
-    static func clamp(offset: CGPoint, drawn: CGSize, area: CGRect) -> CGPoint {
-        let mx = max(0, (drawn.width - area.width) / 2)
-        let my = max(0, (drawn.height - area.height) / 2)
-        return CGPoint(x: min(mx, max(-mx, offset.x)), y: min(my, max(-my, offset.y)))
+    /// Size (in the photo's own, rotated frame) that must be covered so the area stays filled.
+    static func coverSize(area: CGRect, rotation: Double) -> (CGFloat, CGFloat) {
+        let t = abs(rotation) * .pi / 180
+        let c = CGFloat(cos(t)), s = CGFloat(sin(t))
+        return (c * area.width + s * area.height, s * area.width + c * area.height)
+    }
+
+    static func clamp(offset: CGPoint, drawn: CGSize, area: CGRect, rotation: Double = 0) -> CGPoint {
+        let (reqW, reqH) = coverSize(area: area, rotation: rotation)
+        let mx = max(0, (drawn.width - reqW) / 2)
+        let my = max(0, (drawn.height - reqH) / 2)
+        var o = CGPoint(x: min(mx, max(-mx, offset.x)), y: min(my, max(-my, offset.y)))
+        if rotation != 0 {
+            // The offset, seen in the rotated frame, must also stay inside the slack.
+            let t = abs(rotation) * .pi / 180
+            let c = CGFloat(cos(t)), s = CGFloat(sin(t))
+            let cx = c * abs(o.x) + s * abs(o.y), cy = s * abs(o.x) + c * abs(o.y)
+            let f = min(1, cx > 0 ? mx / cx : 1, cy > 0 ? my / cy : 1)
+            o = CGPoint(x: o.x * f, y: o.y * f)
+        }
+        return o
     }
 
     /// Text PNG fitted (aspect kept) and centred in the text area, then scaled by `scale` %.
@@ -104,7 +124,7 @@ enum Imaging {
 
     /// photo (under) + master + class name text → 1800×1200 sRGB.
     static func render(photo: CGImage, master: CGImage, text: CGImage?, area: CGRect, textArea: CGRect,
-                       textScale: Double, zoom: Double, offset: CGPoint) throws -> CGImage {
+                       textScale: Double, zoom: Double, offset: CGPoint, rotation: Double = 0) throws -> CGImage {
         let w = Int(canvas.width), h = Int(canvas.height)
         guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
                                   space: srgb, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
@@ -117,9 +137,16 @@ enum Imaging {
         // Core Graphics is bottom-left based.
         func flip(_ r: CGRect) -> CGRect { CGRect(x: r.minX, y: canvas.height - r.maxY, width: r.width, height: r.height) }
 
-        let pr = photoRect(photo: CGSize(width: photo.width, height: photo.height), area: area, zoom: zoom, offset: offset)
+        let pr = photoRect(photo: CGSize(width: photo.width, height: photo.height), area: area, zoom: zoom, offset: offset, rotation: rotation)
         ctx.saveGState()
         ctx.clip(to: flip(area))
+        if rotation != 0 {
+            // CG is bottom-left based: a negative angle turns clockwise on screen.
+            let fr = flip(pr)
+            ctx.translateBy(x: fr.midX, y: fr.midY)
+            ctx.rotate(by: CGFloat(-rotation * .pi / 180))
+            ctx.translateBy(x: -fr.midX, y: -fr.midY)
+        }
         ctx.draw(photo, in: flip(pr))
         ctx.restoreGState()
 

@@ -305,7 +305,8 @@ Every 5 seconds, while auto-send is on:
 
 | Problem | Fix |
 |---|---|
-| ⟳ does nothing / *Photoshop failed* | Open Photoshop 2026 once. Allow the app under System Settings › Privacy & Security › **Automation** › JohorStudio-Class-Processor › Adobe Photoshop 2026. The first run waits up to 10 minutes for that prompt. |
+| *Photoshop failed … volume is read only* | App ran from a read-only macOS location (App Translocation). v3 resolves the real folder itself; if it still happens move the app into the event folder and run `xattr -dr com.apple.quarantine "JohorStudio-Class-Processor.app"`. |
+| ⟳ does nothing / *Photoshop failed* | Open Photoshop once (any version — v3 finds the installed/running one). Allow the app under System Settings › Privacy & Security › **Automation** › JohorStudio-Class-Processor › Adobe Photoshop. The first run waits up to 10 minutes for that prompt. |
 | *adb not found* | `brew install android-platform-tools` (expected at `/opt/homebrew/bin/adb`). |
 | *press Allow on the phone* / no device | Unlock the phone, accept the USB debugging prompt, press **RESET SERVER**. |
 | Masters show **MISSING** | All five files must sit together and be named `<same name>1.webp` … `5.webp`. |
@@ -335,3 +336,10 @@ Sources/ClassProcessor/
 <div align="center">
 <sub>Made for <a href="https://johorstudio.com">JohorStudio.com</a> · same family as <a href="https://github.com/RafieRosliputra/johorstudio-custom-booth">johorstudio-custom-booth</a></sub>
 </div>
+
+
+## v3 changes
+
+- Photoshop: any installed version is found automatically (no more hard-coded *Photoshop 2026*).
+- Fix: `cache/`, `log/`, `PRINTS/` no longer fail with *volume is read only* when macOS translocates the app.
+- New **rotate °** row (PRINT tab): −0.1° / +0.1° / typed value / 0°. Clockwise +, range ±10°, applies to every photo in PROCESS and PRINT SAMPLES. The photo is enlarged just enough to leave no empty corners. *Fill* also resets rotation.

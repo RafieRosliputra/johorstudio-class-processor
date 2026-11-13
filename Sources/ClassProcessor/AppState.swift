@@ -493,8 +493,8 @@ final class AppState: ObservableObject {
     func setOffset(_ p: CGPoint) {
         var o = p
         if let main = photos.first {
-            let rect = Imaging.photoRect(photo: main.size, area: photoArea, zoom: settings.zoom, offset: .zero)
-            o = Imaging.clamp(offset: p, drawn: rect.size, area: photoArea)
+            let rect = Imaging.photoRect(photo: main.size, area: photoArea, zoom: settings.zoom, offset: .zero, rotation: settings.rotation)
+            o = Imaging.clamp(offset: p, drawn: rect.size, area: photoArea, rotation: settings.rotation)
         }
         settings.offsetX = o.x
         settings.offsetY = o.y
@@ -514,7 +514,20 @@ final class AppState: ObservableObject {
         setOffset(o)
     }
 
+    static let rotationLimit = 10.0
+
+    /// Rotation in degrees (+ = clockwise), 0.1° steps, limited to ±10°. Applies to every photo when processed.
+    func setRotation(_ degrees: Double) {
+        let r = (min(Self.rotationLimit, max(-Self.rotationLimit, degrees)) * 10).rounded() / 10
+        guard r != settings.rotation else { return }
+        settings.rotation = r
+        setOffset(offset)   // re-clamp: a rotated photo is enlarged to cover the area
+    }
+
+    func rotate(by step: Double) { setRotation(settings.rotation + step) }
+
     func resetPlacement() {
+        settings.rotation = 0
         settings.zoom = 1
         settings.offsetX = 0
         settings.offsetY = 0
@@ -575,6 +588,7 @@ final class AppState: ObservableObject {
         let textScale = settings.textScale
         let zoom = settings.zoom
         let offset = self.offset
+        let rotation = settings.rotation
         let prints = paths.prints
         let hot = printSamples ? hotfolderURL : nil
 
@@ -592,11 +606,11 @@ final class AppState: ObservableObject {
                     Log.warn("PRINTS/\(name) already exists — not exported again")
                 } else {
                     do {
-                        let rect = Imaging.photoRect(photo: job.size, area: area, zoom: zoom, offset: offset)
+                        let rect = Imaging.photoRect(photo: job.size, area: area, zoom: zoom, offset: offset, rotation: rotation)
                         let px = Int(ceil(max(rect.width, rect.height)))
                         guard let photo = Imaging.preview(job.url, maxPixels: px) else { throw AppError.cannotRead(job.url.lastPathComponent) }
                         let image = try Imaging.render(photo: photo, master: job.master, text: text, area: area,
-                                                       textArea: textArea, textScale: textScale, zoom: zoom, offset: offset)
+                                                       textArea: textArea, textScale: textScale, zoom: zoom, offset: offset, rotation: rotation)
                         let data = try ImageExport.jpegData(image)
                         try ImageExport.writeAtomically(data, to: out)
                         Log.ok("EXPORT \(job.url.lastPathComponent) + master\(job.number) → PRINTS/\(name)")

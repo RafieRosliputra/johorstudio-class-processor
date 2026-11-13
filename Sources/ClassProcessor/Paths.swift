@@ -17,10 +17,32 @@ struct WorkPaths {
     static func detect() -> WorkPaths {
         let bundle = Bundle.main.bundleURL
         if bundle.pathExtension == "app" {
-            return WorkPaths(root: bundle.deletingLastPathComponent())
+            // Quarantined apps run from a random READ-ONLY copy (App Translocation). Use the real location,
+            // otherwise cache/, log/, PRINTS/ and settings.json cannot be written ("volume is read only").
+            let real = bundle.path.contains("/AppTranslocation/") ? (originalURL(of: bundle) ?? bundle) : bundle
+            let root = real.deletingLastPathComponent()
+            if real != bundle || !root.path.contains("/AppTranslocation/") {
+                return WorkPaths(root: root)
+            }
+            // Could not resolve: writable fallback so the app still works.
+            let fallback = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("JohorStudio-Class-Processor", isDirectory: true)
+            try? FileManager.default.createDirectory(at: fallback, withIntermediateDirectories: true)
+            return WorkPaths(root: fallback)
         }
         // Running from `swift run`: use the current directory.
         return WorkPaths(root: URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true))
+    }
+
+    /// Real path of an app that macOS translocated (private Security API, looked up at runtime; nil if unavailable).
+    private static func originalURL(of url: URL) -> URL? {
+        typealias Fn = @convention(c) (CFURL, UnsafeMutablePointer<Unmanaged<CFError>?>?) -> Unmanaged<CFURL>?
+        guard let handle = dlopen("/System/Library/Frameworks/Security.framework/Security", RTLD_LAZY),
+              let sym = dlsym(handle, "SecTranslocateCreateOriginalPathForURL") else { return nil }
+        let fn = unsafeBitCast(sym, to: Fn.self)
+        var err: Unmanaged<CFError>?
+        guard let out = fn(url as CFURL, &err) else { err?.release(); return nil }
+        return out.takeRetainedValue() as URL
     }
 
     /// macOS runs quarantined apps from a random read-only location.

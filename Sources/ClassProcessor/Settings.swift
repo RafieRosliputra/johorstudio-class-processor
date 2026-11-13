@@ -29,6 +29,7 @@ struct AppSettings: Codable, Equatable {
     var zoom = 1.0                   // 1 = fill the photo area
     var offsetX = 0.0                // master pixels, from the centre of the photo area
     var offsetY = 0.0
+    var rotation = 0.0               // degrees, + = clockwise, steps of 0.1
     var scrollStep = 1.0             // % per scroll notch
 
     // ADB
@@ -56,6 +57,7 @@ struct AppSettings: Codable, Equatable {
         zoom = try c.decodeIfPresent(Double.self, forKey: .zoom) ?? d.zoom
         offsetX = try c.decodeIfPresent(Double.self, forKey: .offsetX) ?? d.offsetX
         offsetY = try c.decodeIfPresent(Double.self, forKey: .offsetY) ?? d.offsetY
+        rotation = try c.decodeIfPresent(Double.self, forKey: .rotation) ?? d.rotation
         scrollStep = try c.decodeIfPresent(Double.self, forKey: .scrollStep) ?? d.scrollStep
         adbSerial = try c.decodeIfPresent(String.self, forKey: .adbSerial)
         wirelessIP = try c.decodeIfPresent(String.self, forKey: .wirelessIP) ?? d.wirelessIP
