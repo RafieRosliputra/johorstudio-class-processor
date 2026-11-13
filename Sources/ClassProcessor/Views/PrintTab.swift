@@ -338,6 +338,13 @@ struct RightPanel: View {
                 }
             }
 
+            VStack(spacing: 2) {
+                Button("EXPORT FOLDER") { app.chooseExportFolder() }
+                    .buttonStyle(PanelButtonStyle())
+                    .help("Where PROCESS FILES saves the finished JPG")
+                small(app.settings.exportFolder == nil ? "\(AppState.shortPath(app.exportFolderURL)) (default)" : AppState.shortPath(app.exportFolderURL))
+            }
+
             Button(app.loading ? "Loading…" : "Load Photo") { app.loadPhotoPanel() }
                 .buttonStyle(PanelButtonStyle())
                 .disabled(app.loading || app.processing)
@@ -465,14 +472,14 @@ struct RightPanel: View {
                 }
                 .buttonStyle(PanelButtonStyle())
                 Button {
-                    NSWorkspace.shared.open(app.paths.prints)
+                    NSWorkspace.shared.open(app.exportFolderURL)
                 } label: {
                     Image(systemName: "folder.fill")
                         .font(.system(size: 26 * s))
                         .foregroundStyle(Color.yellow)
                 }
                 .buttonStyle(.plain)
-                .help("Open PRINTS")
+                .help("Open the export folder")
             }
             .disabled(app.processing || app.photos.isEmpty)
 

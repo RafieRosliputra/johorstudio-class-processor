@@ -18,6 +18,7 @@ struct AreaRect: Codable, Equatable {
 struct AppSettings: Codable, Equatable {
     var liveFolder: String?
     var hotfolderPath: String?
+    var exportFolder: String?        // where PROCESS FILES / PRINT SAMPLES write the finished JPG (nil = <root>/PRINTS)
     var masterPath: String?          // the chosen xxxx1.webp
     var psbPath: String?
     var className = "XXX"
@@ -48,6 +49,7 @@ struct AppSettings: Codable, Equatable {
         let d = AppSettings()
         liveFolder = try c.decodeIfPresent(String.self, forKey: .liveFolder)
         hotfolderPath = try c.decodeIfPresent(String.self, forKey: .hotfolderPath)
+        exportFolder = try c.decodeIfPresent(String.self, forKey: .exportFolder)
         masterPath = try c.decodeIfPresent(String.self, forKey: .masterPath)
         psbPath = try c.decodeIfPresent(String.self, forKey: .psbPath)
         className = try c.decodeIfPresent(String.self, forKey: .className) ?? d.className

@@ -292,7 +292,7 @@ Every 5 seconds, while auto-send is on:
 
 | Where | Name | When |
 |---|---|---|
-| `PRINTS/` | `TINGKATAN 1C - 1.jpg` … `- 5.jpg` (1800×1200, Q95, 300 DPI, sRGB) | PROCESS FILES / PRINT SAMPLES |
+| **EXPORT FOLDER** (default `PRINTS/`; choose with the EXPORT FOLDER button) | `TINGKATAN 1C - 1.jpg` … `- 5.jpg` (1800×1200, Q95, 300 DPI, sRGB) | PROCESS FILES / PRINT SAMPLES |
 | Hotfolder | same as `PRINTS/` | PRINT SAMPLES |
 | `LIVEFOLDER/DONE/` | `TINGKATAN 1C - 1.jpg` … `- 5.jpg`, red photo `TINGKATAN 1C - xx.jpg` (untouched camera originals) | RESET & RENAME |
 | `LIVEFOLDER/WEBP/` + phone | `TINGKATAN 1C - 1.webp` … (photos that are not red) | ⟳ with auto-send **off** |
@@ -341,5 +341,6 @@ Sources/ClassProcessor/
 ## v3 changes
 
 - Photoshop: any installed version is found automatically (no more hard-coded *Photoshop 2026*).
+- New **EXPORT FOLDER** button: choose where PROCESS FILES / PRINT SAMPLES save the finished JPG (default `PRINTS/`); the yellow folder button opens it.
 - Fix: `cache/`, `log/`, `PRINTS/` no longer fail with *volume is read only* when macOS translocates the app.
 - New **rotate °** row (PRINT tab): keys **⌘Q** (−0.1°, anticlockwise) and **⌘E** (+0.1°, clockwise) — hold to repeat; on the PRINT tab ⌘Q no longer quits (use the app menu or the ADB tab) — or the buttons, a typed value, or 0°. Clockwise +, range ±10°, applies to every photo in PROCESS and PRINT SAMPLES. The photo is enlarged just enough to leave no empty corners. *Fill* also resets rotation.

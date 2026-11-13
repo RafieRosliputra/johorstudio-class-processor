@@ -91,13 +91,13 @@ final class AppState: ObservableObject {
         if let err = FileManager.default.probeWrite(in: paths.root) {
             Log.error("Root folder is not writable: \(err)")
         }
-        for folder in [liveFolderURL, WorkPaths.done(in: liveFolderURL), paths.prints, paths.cache] {
+        for folder in [liveFolderURL, WorkPaths.done(in: liveFolderURL), exportFolderURL, paths.cache] {
             do { try FileManager.default.ensureDirectory(folder) } catch {
                 Log.error("Cannot create \(folder.path): \(error.localizedDescription)")
             }
         }
         Log.info("LIVEFOLDER: \(liveFolderURL.path)")
-        Log.info("PRINTS: \(paths.prints.path)")
+        Log.info("EXPORT: \(exportFolderURL.path)")
         if let hot = hotfolderURL {
             if FileManager.default.isDirectory(hot) { Log.ok("Hotfolder: \(hot.path)") } else { Log.error("Hotfolder not found: \(hot.path)") }
         } else {
@@ -138,6 +138,29 @@ final class AppState: ObservableObject {
 
     var liveFolderURL: URL {
         settings.liveFolder.map { URL(fileURLWithPath: $0, isDirectory: true) } ?? paths.defaultLiveFolder
+    }
+
+    /// Where finished JPG go: the folder chosen with EXPORT FOLDER, else <root>/PRINTS.
+    var exportFolderURL: URL {
+        settings.exportFolder.map { URL(fileURLWithPath: $0, isDirectory: true) } ?? paths.prints
+    }
+
+    func chooseExportFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.directoryURL = exportFolderURL
+        panel.prompt = "Use as EXPORT FOLDER"
+        panel.message = "Choose where PROCESS FILES saves the finished JPG"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        if let err = FileManager.default.probeWrite(in: url) {
+            Log.error("Export folder not writable: \(url.path) — \(err)")
+            alert = AlertItem(title: "Export folder not writable", message: err)
+            return
+        }
+        settings.exportFolder = url.path
+        Log.ok("EXPORT FOLDER: \(url.path)")
     }
 
     var hotfolderURL: URL? {
@@ -609,7 +632,7 @@ final class AppState: ObservableObject {
         let zoom = settings.zoom
         let offset = self.offset
         let rotation = settings.rotation
-        let prints = paths.prints
+        let prints = exportFolderURL
         let hot = printSamples ? hotfolderURL : nil
 
         Log.info("\(printSamples ? "PRINT SAMPLES" : "PROCESS"): \(cls) — \(jobs.count) photo(s)\(red.isEmpty ? "" : ", skipped: \(red.sorted().map { "#\($0 + 1)" }.joined(separator: ", "))")")
