@@ -526,14 +526,14 @@ final class AppState: ObservableObject {
         setOffset(offset)   // re-clamp: a rotated photo is enlarged to cover the area
     }
 
-    /// Q = rotate 0.1° counter-clockwise, E = 0.1° clockwise (hold to repeat). Ignored while typing in a text box.
+    /// ⌘Q = rotate 0.1° counter-clockwise, ⌘E = 0.1° clockwise (hold to repeat), on the PRINT tab only.
+    /// ⌘Q does NOT quit the app on the PRINT tab (quit with the app menu, or switch to the ADB tab first).
     private func installRotateKeys() {
         guard keyMonitor == nil else { return }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             MainActor.assumeIsolated {
                 guard let self, self.tab == .print, !self.processing,
-                      event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
-                      !(NSApp.keyWindow?.firstResponder is NSText),
+                      event.modifierFlags.intersection([.command, .control, .option, .shift]) == .command,
                       let key = event.charactersIgnoringModifiers?.lowercased() else { return event }
                 switch key {
                 case "q": self.rotate(by: -0.1); return nil

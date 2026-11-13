@@ -439,21 +439,21 @@ struct RightPanel: View {
             // Rotate photo (0.1° steps, applies to every photo)
             HStack(spacing: 8 * s) {
                 Text("rotate °").font(.system(size: 16 * s))
-                Button("−0.1  Q") { app.rotate(by: -0.1) }
-                    .help("Rotate counter-clockwise 0.1° (key Q)")
+                Button("−0.1  ⌘Q") { app.rotate(by: -0.1) }
+                    .help("Rotate counter-clockwise 0.1° (⌘Q)")
                 TextField("", value: Binding(get: { app.settings.rotation }, set: { app.setRotation($0) }),
                           format: .number.precision(.fractionLength(0...1)))
                     .textFieldStyle(.roundedBorder)
                     .multilineTextAlignment(.center)
                     .frame(width: 60 * s)
                     .help("Degrees, + = clockwise (−10 … +10)")
-                Button("+0.1  E") { app.rotate(by: 0.1) }
-                    .help("Rotate clockwise 0.1° (key E)")
+                Button("+0.1  ⌘E") { app.rotate(by: 0.1) }
+                    .help("Rotate clockwise 0.1° (⌘E)")
                 Spacer()
                 Button("0°") { app.setRotation(0) }
                     .help("No rotation")
             }
-            small("Q = putar kiri 0.1° · E = putar kanan 0.1° (tahan untuk ulang) · taip nilai terus pun boleh")
+            small("⌘Q = putar kiri 0.1° · ⌘E = putar kanan 0.1° (tahan untuk ulang) · atau tekan butang / taip nilai")
 
             HStack(spacing: 10 * s) {
                 Button(app.processing ? "WORKING…" : "PROCESS FILES") {
