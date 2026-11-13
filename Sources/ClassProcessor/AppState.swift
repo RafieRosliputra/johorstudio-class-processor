@@ -65,6 +65,7 @@ final class AppState: ObservableObject {
     private let liveMonitor = FolderMonitor()
     private var activity: NSObjectProtocol?
     private var started = false
+    private var keyMonitor: Any?
 
     init() {
         let paths = WorkPaths.detect()
@@ -102,6 +103,7 @@ final class AppState: ObservableObject {
         } else {
             Log.warn("No hotfolder selected — choose HOTFOLDER before PRINT SAMPLES")
         }
+        installRotateKeys()
         loadMasters()
         loadText()
         if settings.psbPath == nil { Log.warn("No textLayer.psb selected — press CLASS NAME") }
@@ -522,6 +524,24 @@ final class AppState: ObservableObject {
         guard r != settings.rotation else { return }
         settings.rotation = r
         setOffset(offset)   // re-clamp: a rotated photo is enlarged to cover the area
+    }
+
+    /// Q = rotate 0.1° counter-clockwise, E = 0.1° clockwise (hold to repeat). Ignored while typing in a text box.
+    private func installRotateKeys() {
+        guard keyMonitor == nil else { return }
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            MainActor.assumeIsolated {
+                guard let self, self.tab == .print, !self.processing,
+                      event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
+                      !(NSApp.keyWindow?.firstResponder is NSText),
+                      let key = event.charactersIgnoringModifiers?.lowercased() else { return event }
+                switch key {
+                case "q": self.rotate(by: -0.1); return nil
+                case "e": self.rotate(by: 0.1); return nil
+                default: return event
+                }
+            }
+        }
     }
 
     func rotate(by step: Double) { setRotation(settings.rotation + step) }

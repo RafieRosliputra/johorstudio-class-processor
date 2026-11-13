@@ -342,4 +342,4 @@ Sources/ClassProcessor/
 
 - Photoshop: any installed version is found automatically (no more hard-coded *Photoshop 2026*).
 - Fix: `cache/`, `log/`, `PRINTS/` no longer fail with *volume is read only* when macOS translocates the app.
-- New **rotate °** row (PRINT tab): −0.1° / +0.1° / typed value / 0°. Clockwise +, range ±10°, applies to every photo in PROCESS and PRINT SAMPLES. The photo is enlarged just enough to leave no empty corners. *Fill* also resets rotation.
+- New **rotate °** row (PRINT tab): keys **Q** (−0.1°, anticlockwise) and **E** (+0.1°, clockwise) — hold to repeat, ignored while typing in a text box — or the buttons, a typed value, or 0°. Clockwise +, range ±10°, applies to every photo in PROCESS and PRINT SAMPLES. The photo is enlarged just enough to leave no empty corners. *Fill* also resets rotation.
